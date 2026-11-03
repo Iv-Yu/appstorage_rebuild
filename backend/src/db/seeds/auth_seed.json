@@ -1,0 +1,38 @@
+[
+  {
+    "id": "usr-admin-01",
+    "username": "admin",
+    "name": "Administrator IT Gudang",
+    "email": "admin@fieldops.local",
+    "role": "admin",
+    "department": "IT Asset & Warehouse",
+    "phone": "0812-3344-5566",
+    "password_hash": "b154e149ce8686709a8c9a0feaa9511c21aba2b5de3fe68d2678a14445e7ca64",
+    "salt": "salt_master_001",
+    "status": "ACTIVE"
+  },
+  {
+    "id": "usr-spv-01",
+    "username": "supervisor",
+    "name": "Supervisor IT Lapangan",
+    "email": "supervisor@fieldops.local",
+    "role": "supervisor",
+    "department": "IT Operations Management",
+    "phone": "0811-9876-5432",
+    "password_hash": "a39a2dcc43e33dde694663733e3844483fad1080fdd4d8561b38f4a33b516336",
+    "salt": "salt_spv_001",
+    "status": "ACTIVE"
+  },
+  {
+    "id": "usr-tech-01",
+    "username": "teknisi",
+    "name": "Teknisi Lapangan",
+    "email": "teknisi@fieldops.local",
+    "role": "technician",
+    "department": "Field Operations & Hardware Support",
+    "phone": "0812-3456-7890",
+    "password_hash": "ae89836be05dd0bc3d86e0978fcfdc9179edf18398eb28b3ded2f07dfb945991",
+    "salt": "salt_tech_001",
+    "status": "ACTIVE"
+  }
+]

@@ -1,0 +1,95 @@
+/**
+ * FieldOps IT - Backend Server Entry Point
+ * Express 5 + MariaDB 11.x + Vite Middleware Dev Integration
+ */
+
+import express from 'express';
+import { createServer as createViteServer } from 'vite';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { initDatabase } from './db/database';
+import { authenticate } from './middleware/authMiddleware';
+import authRoutes from './routes/auth';
+import inventoryRoutes from './routes/inventory';
+import transactionRoutes from './routes/transactions';
+import ticketRoutes from './routes/ticketIntegration';
+import checklistRoutes from './routes/checklist';
+import reportRoutes from './routes/reports';
+import { BackupService } from './services/backupService';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, '../../');
+
+async function startServer() {
+  const app = express();
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+  // Security Headers Middleware (SEC-05)
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
+
+  app.use(express.json({ limit: '2mb' }));
+  app.use(express.urlencoded({ extended: true }));
+
+  // Inisialisasi Database MariaDB & Migrasi Skema
+  await initDatabase();
+
+  // Inisialisasi Cron Backup Harian Terpisah
+  BackupService.initDailyBackupCron();
+
+  // Pasang Middleware Autentikasi Sesi Server
+  app.use(authenticate);
+
+  // Health check endpoint
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      status: 'healthy',
+      app: 'FieldOps IT Backend Rebuild',
+      version: '1.0.0',
+      database: 'MariaDB 11.x (Separated Business vs Account Files)',
+      tunnel: 'Cloudflare Tunnel Ready',
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Mount API Routes
+  app.use('/api/auth', authRoutes);
+  app.use('/api/inventory', inventoryRoutes);
+  app.use('/api/transactions', transactionRoutes);
+  app.use('/api/tickets', ticketRoutes);
+  app.use('/api/checklists', checklistRoutes);
+  app.use('/api/reports', reportRoutes);
+
+  // Endpoint Backup Khusus Data Barang (Bebas Akun)
+  app.get('/api/backup/inventory/download', async (_req, res) => {
+    try {
+      const result = await BackupService.createInventoryBackup('user-download');
+      res.download(result.filePath, result.filename);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // Integrasi Vite Frontend untuk Development / AI Studio Preview
+  const vite = await createViteServer({
+    root: rootDir,
+    server: { middlewareMode: true },
+    appType: 'spa'
+  });
+  app.use(vite.middlewares);
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[FieldOps IT Rebuild Server] Berjalan pada http://0.0.0.0:${PORT}`);
+  });
+}
+
+startServer().catch(err => {
+  console.error('Fatal Server Startup Error:', err);
+  process.exit(1);
+});

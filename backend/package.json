@@ -1,0 +1,25 @@
+{
+  "name": "fieldops-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "setup:admin": "tsx src/scripts/setupAdmin.ts",
+    "test:backup": "tsx src/scripts/testBackupRestore.ts",
+    "migrate": "tsx src/db/migrate.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.0.0",
+    "mysql2": "^3.13.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^26.6.6",
+    "tsx": "^4.21.0",
+    "typescript": "^7.0.2"
+  }
+}
