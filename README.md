@@ -1,119 +1,90 @@
 # FieldOps IT - Sistem Manajemen Inventaris & Operasional Teknisi Lapangan
 
-![Version](https://img.shields.io/badge/version-v0.3.1-emerald.svg)
+![Version](https://img.shields.io/badge/version-v1.0.0--rebuild-emerald.svg)
 ![React](https://img.shields.io/badge/React-19.3.0-61DAFB?logo=react)
 ![Express](https://img.shields.io/badge/Express-5.0.0-000000?logo=express)
-![Vite](https://img.shields.io/badge/Vite-8.3.0-646CFF?logo=vite)
+![MariaDB](https://img.shields.io/badge/MariaDB-11.4_LTS-003545?logo=mariadb)
+![Docker](https://img.shields.io/badge/Docker-24.0+-2496ED?logo=docker)
 ![TypeScript](https://img.shields.io/badge/TypeScript-7.0.2-3178C6?logo=typescript)
 ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-4.3.3-38BDF8?logo=tailwindcss)
-![Firebase](https://img.shields.io/badge/Firebase-13.1.0-FFCA28?logo=firebase)
-![Node](https://img.shields.io/badge/Node.js-26_LTS_(hingga_2029)-339933?logo=node.js)
 
-FieldOps IT adalah aplikasi web progresif (PWA) modern untuk tata kelola inventaris suku cadang, pelacak stok real-time, manajemen checklist tas teknisi lapangan, dan laporan pergerakan barang mingguan. Dikembangkan khusus untuk tim operasional IT Support dan Teknisi Lapangan dengan dukungan offline-first, sinkronisasi otomatis, pengerasan keamanan tingkat tinggi, dan tema gelap/terang adaptif.
+FieldOps IT adalah aplikasi web manajemen inventaris suku cadang, pencatatan mutasi stok barang masuk/keluar, verifikasi checklist tas lapangan teknisi, dan laporan mingguan pergerakan barang. Dikembangkan secara mandiri (*on-premises single-office*) berbasis **React 19**, **Express 5**, **MariaDB 11.x**, dan **Docker Container** tanpa ketergantungan pada layanan cloud pihak ketiga.
 
 ---
 
-## 🌟 Fitur Utama (v0.3.1)
+## 🌟 Fitur Utama (v1.0.0-rebuild)
 
-- **Katalog Inventaris & Mutasi Stok**:
-  - Pengecekan stok cepat dengan indikator visual stok minimum (low stock alert).
-  - Mutasi barang masuk (Stock In) dan barang keluar (Stock Out/Batch Out).
-  - Pencatatan serial number (SN), lokasi rak gudang, dan barcode tracking.
-- **Pengerasan Keamanan Berlapis (Security Hardened - SEC-01 s/d SEC-05)**:
-  - **Firestore Rules Ketat**: Seluruh koleksi dokumen dilindungi otentikasi `isSignedIn()` (`request.auth != null`) tanpa akses publik terbuka.
-  - **Server-Side RBAC Enforcement**: Aksi destruktif/sensitif divalidasi otoritas backend (`/api/security/verify-action`).
-  - **Proxy WhatsApp Fail-Closed**: Wajib menggunakan header otorisasi `X-App-Secret-Key` atau `Bearer Token`.
-  - **HTTP Security Headers**: Penerapan standar proteksi `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `X-XSS-Protection`, dan `Referrer-Policy`.
-  - **Kriptografi PBKDF2**: Hashing kata sandi akun lokal dengan 100.000 iterasi SHA-256 dan 16-byte random salt.
-  - **Proteksi Injeksi Formula**: Sanitasi CWE-1236 pada seluruh keluaran file ekspor Excel, CSV, dan PDF.
-- **Checklist Tas Lapangan Teknisi**:
-  - Verifikasi kelengkapan peralatan dan material bawaan sebelum berangkat ke lokasi pelanggan.
-  - Pengurangan stok otomatis saat item dikonsumsi dari checklist atau tiket lapangan.
-- **Laporan & Analytics**:
-  - Visualisasi tren pergerakan barang 30 hari (Recharts) dan ekspor data (Excel .xlsx, CSV, PDF).
-- **Dukungan Offline-First (PWA)**:
-  - Layanan antrean mutasi lokal dan sinkronisasi otomatis ke cloud saat jaringan pulih.
+- **Arsitektur Terpisah (Decoupled Architecture)**:
+  - Kode sumber terpisah secara bersih antara `frontend/` (React 19 SPA + Vite) dan `backend/` (Express 5 REST API + MariaDB 11).
+- **Pengamanan Autentikasi Server-Authoritative**:
+  - Pengelolaan sesi berbasis HTTP-only Cookie dan enkripsi kata sandi menggunakan algoritma **PBKDF2 SHA-256 (100.000 iterasi + 16-byte random salt)**.
+  - Otorisasi per peran (*Role-Based Access Control* / RBAC) yang ditegakkan sepenuhnya di sisi server (`backend/src/middleware/authMiddleware.ts`).
+- **Isolasi Data Terpisah (Separated Business vs Account Files)**:
+  - Data akun pengguna (`01_auth_schema.sql`) dan data bisnis inventaris (`02_inventory_schema.sql`) tersimpan dalam skema terpisah.
+  - Fitur backup otomatis memproduksi file snapshot JSON yang **100% bebas dari akun dan hash password pengguna** (*Zero Account Leakage*).
+- **Notifikasi WhatsApp Gateway & Integrasi REST API Tiket**:
+  - Integrasi provider WhatsApp Gateway (Fonnte) tersentralisasi di `backend/src/integrations/whatsapp/`.
+  - Endpoint REST API `/api/tickets/consume` dengan enkripsi token Bearer untuk pengurangan stok otomatis dari aplikasi tiket lapangan.
+- **Perlindungan Ekspor Data (CWE-1236)**:
+  - Sanitasi otomatis `sanitizeFormulaInput()` pada file keluaran Excel, CSV, dan PDF untuk mencegah serangan formula injection.
+- **Siap Deployment Docker & Cloudflare Tunnel**:
+  - Dilengkapi `Dockerfile` multi-stage, `docker-compose.yml`, dan opsi jaringan Cloudflare Tunnel untuk akses jarak jauh HTTPS yang aman tanpa membuka port router kantor.
 
 ---
 
-## 🏗️ Teknologi Utama (Latest LTS Support)
+## 🏗️ Teknologi Utama
 
-| Komponen | Teknologi / Library | Versi | Status Dukungan |
+| Komponen | Teknologi | Versi | Catatan / Fungsi |
 | :--- | :--- | :--- | :--- |
-| **Runtime Environment** | Node.js | `26.x LTS` (kompatibel `>=22.x`) | Active Long-Term Support (LTS) resmi hingga 2029 |
-| **Frontend Framework** | React | `19.3.0` | Modern Concurrent Mode & Server Actions Ready |
-| **Build Tool & Bundler** | Vite | `8.3.0` | High-Performance ESM Bundler |
-| **Bahasa Pemrograman** | TypeScript | `7.0.2` (@types/node `^26.6.6`) | Strict Type-Checking & High Safety |
-| **Styling & Design System** | Tailwind CSS | `4.3.3` | Zero-Runtime CSS Engine & Dark Mode |
-| **Icons & Animasi** | Lucide React + Motion | `0.546.0` / `12.23.24` | Modern SVG Vector & UI Transition |
-| **Visualisasi Data** | Recharts | `3.10.1` | Responsive SVG Dashboard Charts |
-| **Backend Proxy & Server** | Express | `5.0.0` (v5 Major Release) | Modern Promises & Route-Handling Engine |
-| **Database & Auth** | Firebase Firestore & Auth | `13.1.0` | Enterprise Multi-Tab Offline Persistent Cache |
-| **PWA Service Worker** | Vite Plugin PWA | `2.0.0` | Workbox Offline Caching Engine |
+| **Database Engine** | MariaDB | `11.4 LTS` | Relational DB Server On-Premises (Penyimpanan Terisolasi) |
+| **Frontend Framework** | React | `19.3.0` | Modern Component-Based SPA |
+| **Backend Framework** | Express | `5.0.0` | Node.js REST API Server Engine |
+| **Containerization** | Docker & Compose | `v24.0+` | Multi-Stage Production Build |
+| **Build Tool & Bundler** | Vite | `8.3.0` | High-Performance ESM Frontend Bundler |
+| **Bahasa Pemrograman** | TypeScript | `7.0.2` | Strict Type-Checking & High Safety |
+| **Styling & UI** | Tailwind CSS | `4.3.3` | Zero-Runtime CSS Engine & Dark Mode |
 
 ---
 
-## 🚀 Panduan Memulai (Local Setup)
+## 🚀 Panduan Memulai (Quick Start)
 
-### Prasyarat
-- Node.js (Direkomendasikan Node.js v26 LTS dengan dukungan hingga 2029, atau v22+ LTS)
-- npm (v10+) atau bun (v1+)
+### Mode Pengembangan (Development Mode)
 
-### Langkah Instalasi
-
-1. **Clone Repository**:
-   ```bash
-   git clone https://github.com/organization/fieldops-it.git
-   cd fieldops-it
-   ```
-
-2. **Instal Dependensi**:
-   ```bash
-   npm install
-   ```
-
-3. **Konfigurasi Environment Variables**:
-   Salin file `.env.example` menjadi `.env` dan lengkapi variabel yang diperlukan:
+1. **Salin Environment Variables**:
    ```bash
    cp .env.example .env
    ```
-
-4. **Jalankan Mode Pengembangan (Development)**:
+2. **Jalankan Aplikasi Mode Dev**:
    ```bash
+   npm install
    npm run dev
    ```
-   Aplikasi akan berjalan di `http://localhost:3000`.
+   Aplikasi dapat diakses di `http://localhost:3000`.
 
-5. **Build untuk Produksi**:
+### Mode Produksi dengan Docker (Recommended)
+
+1. **Jalankan Container Docker**:
    ```bash
-   npm run build
+   docker compose up -d --build
    ```
-
-6. **Jalankan Server Produksi**:
+2. **Buat Akun Master Admin / Dev Superadmin Pertama**:
    ```bash
-   npm start
+   docker compose exec backend npm run setup:admin
    ```
 
 ---
 
 ## 📚 Dokumentasi Lengkap
 
-Dokumentasi rinci terkait arsitektur, data, peran, dan pengoperasian sistem dapat diakses melalui direktori [`docs/`](./docs/):
+Seluruh dokumen teknis dan operasional sistem tersedia di direktori [`docs/`](./docs/):
 
-- 📐 [**Arsitektur Sistem (`docs/ARSITEKTUR.md`)**](./docs/ARSITEKTUR.md) — Diagram sistem, struktur folder, alur data, dan manajemen state.
-- 🗄️ [**Struktur Data (`docs/DATA.md`)**](./docs/DATA.md) — Skema Firestore, kunci `localStorage`, kalkulasi stok, dan aturan mutasi.
-- 🔐 [**Peran & Hak Akses (`docs/PERAN_DAN_AKSES.md`)**](./docs/PERAN_DAN_AKSES.md) — Matriks RBAC, alur autentikasi PBKDF2, dan manajemen sesi.
-- 📖 [**Panduan Pengguna (`docs/PANDUAN_PENGGUNA.md`)**](./docs/PANDUAN_PENGGUNA.md) — Manual operasional non-teknis untuk staf admin dan teknisi.
-- 🚀 [**Deployment & Operasional (`docs/DEPLOY_DAN_OPERASIONAL.md`)**](./docs/DEPLOY_DAN_OPERASIONAL.md) — Panduan build, eksposur `.env`, backup data, dan penanganan insiden.
-- 🎨 [**Sistem Tema & Desain (`docs/TEMA_DAN_DESAIN.md`)**](./docs/TEMA_DAN_DESAIN.md) — Tokom warna Tailwind, disiplin dark mode, dan responsivitas.
-- 📜 [**Changelog (`docs/CHANGELOG.md`)**](./docs/CHANGELOG.md) — Riwayat perubahan versi dari v0.1.0 hingga v0.2.9.
-- 🛡️ [**Laporan Audit Sistem (`AUDIT_REPORT.md`)**](./AUDIT_REPORT.md) — Laporan lengkap audit keamanan, performa, dan kualitas kode.
-
----
-
-## 🛡️ Aturan Kontribusi & Pengkodian untuk AI/Developer
-
-Sebelum melakukan perubahan kode pada repositori ini, pastikan untuk membaca [`AGENTS.md`](./AGENTS.md) untuk memahami standar pengkodian, aturan pengamanan PBKDF2, dan larangan mutasi skema tanpa otorisasi.
+- 📐 [**Arsitektur Sistem (`docs/ARCHITECTURE.md`)**](./docs/ARCHITECTURE.md) — Diagram arsitektur terpisah, alur REST API, dan jaringan Docker.
+- 🚀 [**Panduan Deployment (`docs/DEPLOY.md`)**](./docs/DEPLOY.md) — Langkah deployment Docker (Linux/Windows), setup Cloudflare Tunnel, backup, dan troubleshooting.
+- 🗄️ [**Struktur & Kamus Data (`docs/DATA.md`)**](./docs/DATA.md) — Skema tabel MariaDB, relasi data, dan aturan mutasi stok.
+- 🔐 [**Peran & Hak Akses (`docs/PERAN_DAN_AKSES.md`)**](./docs/PERAN_DAN_AKSES.md) — Matriks RBAC server-side untuk Superadmin, Supervisor, Admin, dan Teknisi.
+- 📊 [**Matriks Progres Rebuild (`docs/PROGRESS.md`)**](./docs/PROGRESS.md) — Pelacak status penyelesaian fitur Tahap 0 hingga Tahap 5.
+- 📜 [**Riwayat Versi (`CHANGELOG.md`)**](./CHANGELOG.md) — Catatan rilis proyek dari awal hingga versi `v1.0.0-rebuild`.
+- 🛠️ [**Aturan Developer (`AGENTS.md`)**](./AGENTS.md) — Invarian keamanan mutlak dan panduan pengkodian.
 
 ---
 

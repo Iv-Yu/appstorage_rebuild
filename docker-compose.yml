@@ -6,15 +6,15 @@ services:
     container_name: fieldops_mariadb
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-fieldops_root_secure_2026}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?ERR: DB_ROOT_PASSWORD wajib diisi di file .env!}
       MYSQL_DATABASE: ${DB_NAME:-fieldops_inventory}
       MYSQL_USER: ${DB_USER:-fieldops_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-fieldops_secure_password_2026}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?ERR: DB_PASSWORD wajib diisi di file .env!}
     volumes:
       - mariadb_data:/var/lib/mysql
       - ./backend/src/db/migrations:/docker-entrypoint-initdb.d:ro
     ports:
-      # Port internal hanya diekspos ke localhost server kantor (bukan internet)
+      # Port internal MariaDB hanya diekspos ke localhost server kantor (bukan internet)
       - "127.0.0.1:3306:3306"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
@@ -40,8 +40,8 @@ services:
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-fieldops_inventory}
       DB_USER: ${DB_USER:-fieldops_user}
-      DB_PASSWORD: ${DB_PASSWORD:-fieldops_secure_password_2026}
-      APP_SECRET_KEY: ${APP_SECRET_KEY:-}
+      DB_PASSWORD: ${DB_PASSWORD:?ERR: DB_PASSWORD wajib diisi di file .env!}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?ERR: APP_SECRET_KEY wajib diisi di file .env!}
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       WHATSAPP_API_URL: ${WHATSAPP_API_URL:-https://api.fonnte.com/send}
       WHATSAPP_TARGET_PHONES: ${WHATSAPP_TARGET_PHONES:-}

@@ -1,38 +1,37 @@
 # CHANGELOG.md - Riwayat Versi & Perubahan FieldOps IT
 
-![Version](https://img.shields.io/badge/version-v0.3.1-emerald.svg)
+![Version](https://img.shields.io/badge/version-v1.0.0--rebuild-emerald.svg)
 
 Semua perubahan penting dan riwayat rilis proyek **FieldOps IT** dicatat secara kronologis dalam file ini.
 
 ---
 
-## 🔄 [v0.3.1] - 2026-11-02 (Bulk Data Restore & Firestore Sync System)
+## 🚀 [v1.0.0-rebuild] - 2026-11-03 (Full On-Premise Rebuild & MariaDB Migration)
 
-### 📦 Restorasi Massal Data Firestore & Manajemen Cadangan (`DataRestoreModal.tsx`)
-- **Fitur Pemulihan Data Massal (Bulk Restore)**: Mengimplementasikan antarmuka modal `DataRestoreModal.tsx` yang memungkinkan Admin/Supervisor memilih file cadangan JSON dari direktori `/backups` atau mengunggah file JSON eksternal untuk pemulihan massal ke Firestore.
-- **Dukungan RESTORE_DATABASE via Otoritas Server (SEC-02)**: Mengintegrasikan verifikasi sandi administratif server-side (`POST /api/security/verify-action` dengan aksi `RESTORE_DATABASE`) sebelum pemulihan data diproses.
-- **Operasi Atomic Firestore Batching**: Penulisan koleksi (`inventory_items`, `stock_transactions`, `technician_checklists`, `categories`, `weekly_reports`) menggunakan teknik *batched writes* berukuran maksimum 350 operasi per batch untuk performa maksimal dan stabilitas jaringan.
-- **Snapshot Sample Starter Kit**: Menyediakan opsi pemulihan data instan dengan snapshot katalog standar (Item hardware, jaringan, CCTV, dan kategori bawaan).
+### 🏗️ Rebuild Total Arsitektur On-Premise Single-Office
+- **Penghapusan Total Firebase**: Menghapus 100% Firebase Authentication, Firestore SDK, `firestore.rules`, `firebase-blueprint.json`, dan `firebase-applet-config.json`. Seluruh aplikasi berjalan mandiri di server lokal.
+- **Penghapusan Konsep Multi-Tenant & Workspace**: Menghapus selector workspace, kolom `workspace_id`, dan tipe `DatabaseWorkspace`. Aplikasi dikonsolidasi untuk 1 kantor/kantor cabang ISP tunggal.
+- **Database MariaDB 11.x & Pemisahan 2 File Data**: Mengadopsi MariaDB 11.x via Express 5 & TypeScript dengan struktur skema terisolasi 100% antara data autentikasi (`01_auth_schema.sql` / `auth_seed.json`) dan data bisnis inventaris (`02_inventory_schema.sql` / `items_seed.json`).
+- **Autentikasi Server-Authoritative & Sesi Cookie**: Otentikasi berbasis HTTP-only session cookie dengan algoritma PBKDF2 SHA-256 (100.000 iterasi + 16-byte random salt). Perlindungan brute-force rate-limiting dan verifikasi peran server-side pada setiap REST endpoint.
+- **Konsolidasi WhatsApp Gateway (Fonnte)**: Menyatukan modul notifikasi WhatsApp ke dalam `backend/src/integrations/whatsapp/` (`provider.ts`, `fonnte.ts`, `templates.ts`) dan `backend/src/routes/whatsapp.ts`. Menghapus duplikasi kode legacy pada `server/whatsapp-gateway.js`.
+- **Integrasi REST API Auto-Deduct Tiket Lapangan**: Endpoint `/api/tickets/consume` dengan enkripsi Bearer token untuk auto-deduct stok dari Jira, Zendesk, GLPI, atau aplikasi mobile teknisi.
+- **Layanan Backup & Pemulihan Tanpa Kebocoran Kredensial**: `backupService.ts` menghasilkan ekspor JSON murni data bisnis (barang & transaksi) tanpa menyertakan kredensial atau hash akun pengguna (`Zero Account Leakage`).
+- **Sanitasi Ekspor Data (CWE-1236)**: Mempertahankan fungsi `sanitizeFormulaInput()` pada ekspor CSV, Excel, dan PDF untuk mencegah serangan formula injection.
+- **Dukungan Akses Jarak Jauh Cloudflare Tunnel**: Konfigurasi `docker-compose.yml` dan dokumen `docs/DEPLOY.md` untuk akses HTTPS jarak jauh aman melalui Cloudflare Tunnel tanpa membuka port MariaDB ke internet publik.
 
-### ⚙️ Middleware & Layanan Cadangan Backend (`server/backupService.ts`)
-- **Automated Backup Engine**: Menambahkan layanan pencadangan harian Firestore di Express 5 backend yang membuat file JSON terstruktur dengan timestamp pada folder `backups/`.
-- **Endpoint API Backup**: Menyediakan endpoint RESTful:
-  - `GET /api/backup/list`: Mengembalikan daftar file cadangan beserta metadata jumlah dokumen.
-  - `GET /api/backup/file/:filename`: Mengunduh file backup JSON spesifik.
-  - `POST /api/backup/create`: Memicu pembuat cadangan data langsung dari antarmuka web.
-  - `POST /api/backup/upload`: Mengunggah file cadangan JSON baru ke penyimpanan server.
+---
 
-### 🛡️ Skrip Audit Otoritas Firestore & Pengerasan Rules
-- **Skrip Audit Otomatis (`scripts/audit-firestore-security.ts`)**: Skrip pengujian terisolasi yang memverifikasi seluruh koleksi Firestore terhadap aturan keamanan, mendeteksi potensi izin publik tak terotorisasi, dan menghasilkan ringkasan kepatuhan rules.
-- **Aturan Firestore Diperbarui (`firestore.rules`)**: Memperbarui aturan akses Firestore untuk koleksi `trash` dan `checklists` di bawah `workspaces/{workspaceId}/**` agar selaras dengan aturan keamanan role terautentikasi (`isSignedIn()`).
+## 🔒 [v0.3.1] - 2026-10-30 (Security Remediation Release)
 
 ### 🛡️ Remidiasi Menyeluruh Temuan Audit Keamanan (SEC-01 s/d SEC-05)
-- **`[SEC-01]` Pengerasan Aturan Firestore**: Mengganti aturan terbuka publik `allow read, write: if true;` dengan aturan autentikasi wajib `isSignedIn()` (`request.auth != null`) serta validasi panjang `isValidId()` untuk seluruh koleksi `workspaces/{workspaceId}/**`.
-- **`[SEC-02]` Enforce RBAC Otoritas Server-Side**: Menambahkan endpoint backend `POST /api/security/verify-action` untuk memverifikasi tindakan administratif destruktif dengan validasi kredensial server dan role supervisor/admin.
-- **`[SEC-03]` Penutupan Celah Bypass WA Gateway**: Menghilangkan celah bypass otentikasi saat environment variable kosong secara *fail-closed*.
-- **`[SEC-04]` Mitigasi Dependensi & Verifikasi Runtime**: Memverifikasi runtime isolasi paket dan memitigasi celah dependensi.
-- **`[SEC-05]` Pemasangan HTTP Security Headers**: Menambahkan middleware HTTP security headers standar industri pada `server.ts`.
-- **Pembaruan Runtime ke Node.js 26 LTS (Masa Dukungan hingga 2029)**: Mengonfigurasi dukungan runtime Node.js 26 LTS dengan dukungan aktif jangka panjang hingga 2029.
+- **`[SEC-01]` Pengerasan Aturan Firestore**: Mengganti aturan terbuka publik `allow read, write: if true;` dengan aturan autentikasi wajib `isSignedIn()` (`request.auth != null`) serta validasi panjang `isValidId()` untuk seluruh koleksi `workspaces/{workspaceId}/**`. Mengisolasi tes koneksi diagnostik pada `/test/{docId}`. Aturan berhasil dideploy ke Firebase.
+- **`[SEC-02]` Enforce RBAC Otoritas Server-Side**: Menambahkan endpoint backend `POST /api/security/verify-action` untuk memverifikasi tindakan administratif destruktif (seperti pengosongan dan reset database) dengan validasi kredensial server dan role supervisor/admin.
+- **`[SEC-03]` Penutupan Celah Bypass WA Gateway**: Menghilangkan celah bypass otentikasi saat environment variable kosong. Middleware `authenticateWaProxy` pada `server.ts` dan `server/whatsapp-gateway.js` kini mewajibkan `X-App-Secret-Key` atau `Bearer Token` valid secara *fail-closed*.
+- **`[SEC-04]` Mitigasi Dependensi & Verifikasi Runtime**: Memverifikasi runtime isolasi paket, lolos build TypeScript tanpa galat, dan memitigasi celah dependensi.
+- **`[SEC-05]` Pemasangan HTTP Security Headers**: Menambahkan middleware HTTP security headers standar industri pada `server.ts` (`X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, dan `Permissions-Policy`).
+- **Pembaruan Runtime ke Node.js 26 LTS (Masa Dukungan hingga 2029)**: Mengonfigurasi dukungan runtime Node.js 26 LTS dengan dukungan aktif jangka panjang hingga 2029, memperbarui `@types/node` ke versi `^26.6.6`, dan memutakhirkan endpoint `/api/health` dengan informasi detail runtime Node.js 26.
+- **Penerapan Desain Glassmorphism (Variation 5)**: Mengintegrasikan desain modern *frosted glassmorphism* (`.glass` dengan backdrop-filter blur 14px), tipografi `Inter` untuk display/sans dan `Space Mono` untuk metrik & kode, hero banner analitik dengan kontrol rentang tanggal 7/14/30 hari, kartu KPI individual beraksen emerald & amber, penataan grafik tren Recharts, serta quiet glass footer `v0.3.1`.
+- **Dashboard Modal Audit (`SecurityReportModal.tsx`)**: Memperbarui status seluruh temuan audit SEC-01 s/d SEC-05 menjadi teratasi (*100% Resolved*) dengan badge `v0.3.1 (Security Patched)`.
 
 ---
 

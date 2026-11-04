@@ -1,27 +1,27 @@
 {
   "name": "fieldops-it-inventory",
   "private": true,
-  "version": "0.3.1",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx backend/src/server.ts",
-    "start": "node server.ts",
-    "build": "vite build",
-    "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "build": "npm run build:frontend",
+    "build:frontend": "vite build --outDir dist frontend",
+    "build:backend": "tsc --noEmit",
+    "start": "NODE_ENV=production tsx backend/src/server.ts",
+    "preview": "vite preview frontend",
+    "clean": "rm -rf frontend/dist dist",
     "lint": "tsc --noEmit",
     "setup:admin": "tsx backend/src/scripts/setupAdmin.ts",
     "test:backup": "tsx backend/src/scripts/testBackupRestore.ts"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/jszip": "^3.4.1",
     "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-react": "^6.1.1",
     "dotenv": "^17.2.3",
     "express": "^5.0.0",
-    "firebase": "^13.1.0",
     "jszip": "^3.10.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
@@ -47,8 +47,5 @@
   },
   "engines": {
     "node": ">=22.0.0"
-  },
-  "overrides": {
-    "@grpc/grpc-js": "^1.14.7"
   }
 }

@@ -1,276 +1,279 @@
-# PANDUAN DEPLOYMENT & OPERASIONAL SERVER LOKAL (DEPLOY.MD)
+# PANDUAN DEPLOYMENT & OPERASIONAL DOCKER (DEPLOY.MD)
+
 **Aplikasi**: FieldOps IT Inventory Rebuild  
-**Infrastruktur**: Server Fisik / PC Kantor ISP (Local On-Premises)  
-**Database**: MariaDB 11.4 LTS (Docker Container Terisolasi)  
-**Akses Jarak Jauh**: Cloudflare Tunnel (HTTPS Tanpa Buka Port Firewall)
+**Infrastruktur**: Docker Container (Ubuntu Server / Windows Docker Desktop)  
+**Database**: MariaDB 11.4 LTS (Container Terisolasi)  
+**Akses Jarak Jauh**: Cloudflare Tunnel (HTTPS Tanpa Buka Port Router)
 
 ---
 
-## 📋 1. Prasyarat Perangkat Keras & Lunak
-- **Sistem Operasi Server**: Ubuntu Server 22.04 / 24.04 LTS (atau Debian 12).
-- **Spesifikasi Minimum**: 2 CPU Core, 4 GB RAM, 50 GB SSD Storage.
+## 📋 1. Prasyarat Perangkat Keras & Perangkat Lunak
+
+Sebelum memulai pemasangan, pastikan server atau PC kantor memenuhi kebutuhan berikut:
+
+- **Perangkat Keras Minimum**: 2 CPU Core, 4 GB RAM, 50 GB Storage.
+- **Sistem Operasi**: 
+  - Ubuntu Server 22.04 / 24.04 LTS *(Direkomendasikan)*, atau
+  - Windows 10/11 Pro / Windows Server 2019/2022.
 - **Perangkat Lunak Wajib**:
-  - Docker Engine >= 24.0 & Docker Compose V2
-  - Node.js >= 22.0 LTS & npm >= 10.0
-  - Git
+  - **Linux Ubuntu**: Docker Engine (v24.0+) & Docker Compose V2 (`docker compose`).
+  - **Windows**: Docker Desktop for Windows (aktifkan fitur *WSL 2 Backend*).
+  - **Git**: Untuk mengkloning kode sumber.
 
 ---
 
-## 🚀 2. Langkah Pemasangan dari Nol (Fresh Installation)
+## 🚀 2. Panduan Instalasi Pertama Kali (Fresh Installation)
 
-### Langkah 1: Kloning Repositori & Persiapan Direktori
+Ikuti 5 langkah berikut untuk memasang aplikasi di server kantor dari nol:
+
+### Langkah 1: Kloning Repositori
+Buka Terminal (Ubuntu) atau PowerShell / Command Prompt (Windows), lalu jalankan:
 ```bash
-git clone https://github.com/fath116-arch/App-storage.git /opt/fieldops
-cd /opt/fieldops
-mkdir -p backups data
+git clone https://github.com/fath116-arch/App-storage.git fieldops
+cd fieldops
 ```
 
-### Langkah 2: Konfigurasi Variabel Lingkungan (`.env`)
-Salin file `.env.example` ke `.env`:
-```bash
-cp .env.example .env
-nano .env
-```
-Isi konfigurasi berikut:
+### Langkah 2: Buat & Konfigurasi File `.env`
+Salin file templat `.env.example` menjadi `.env`:
+- **Ubuntu/Linux**:
+  ```bash
+  cp .env.example .env
+  nano .env
+  ```
+- **Windows (PowerShell)**:
+  ```powershell
+  copy .env.example .env
+  notepad .env
+  ```
+
+Isi variabel wajib berikut pada file `.env`:
 ```ini
-# Port & Aplikasi
 PORT=3000
 NODE_ENV=production
+
+# Kunci Rahasia Internal (Buat string acak dan panjang)
 APP_SECRET_KEY=kunci_rahasia_internal_super_panjang_dan_acak_2026
 
-# Database MariaDB Server Kantor
+# Password Database MariaDB (Wajib Diisi & Rahasia)
 DB_HOST=mariadb
 DB_PORT=3306
 DB_NAME=fieldops_inventory
 DB_USER=fieldops_user
-DB_PASSWORD=buat_password_database_rahasia_disini
-DB_ROOT_PASSWORD=buat_password_root_mariadb_disini
+DB_PASSWORD=buat_password_database_user_rahasia_disini
+DB_ROOT_PASSWORD=buat_password_root_mariadb_rahasia_disini
 
-# WhatsApp Gateway (Fonnte)
-WHATSAPP_API_TOKEN=token_fonnte_resmi_anda
+# Konfigurasi WhatsApp Gateway (Fonnte)
+WHATSAPP_API_TOKEN=token_fonnte_resmi_anda_disini
 WHATSAPP_API_URL=https://api.fonnte.com/send
 WHATSAPP_TARGET_PHONES=081299998888,081377776666
 WHATSAPP_AUTO_ALERT=true
 
-# Cloudflare Tunnel Token (Akses Jarak Jauh Atasan)
-CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoiY2xvdWRmbGFyZS10b2tlbi1yZXNtaS1hbmRhIn0=
+# Token Cloudflare Tunnel (Akses HTTPS Jarak Jauh Atasan)
+CLOUDFLARE_TUNNEL_TOKEN=
 ```
 
-### Langkah 3: Menjalankan Container dengan Docker Compose
+### Langkah 3: Build & Jalankan Kontainer Docker
+Jalankan perintah berikut untuk mengunduh image, membangun kontainer, dan mengaktifkan service:
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
-Pastikan seluruh container dalam status sehat (*healthy*):
+
+Pastikan seluruh kontainer berada dalam status sehat (*healthy* / *running*):
 ```bash
 docker compose ps
 ```
 
-### Langkah 4: Membuat Akun Master Admin Pertama
-Jalankan skrip inisialisasi akun admin secara interaktif di terminal server:
+### Langkah 4: Buat Akun Master Admin / Dev Superadmin Pertama
+Jalankan skrip inisialisasi akun admin interaktif di dalam kontainer backend:
 ```bash
 docker compose exec backend npm run setup:admin
 ```
-Masukkan username, nama lengkap, email, dan kata sandi kuat (minimal 8 karakter).
+Sistem akan meminta username, nama lengkap, email, peran (`superadmin` / `supervisor` / `admin`), dan kata sandi kuat (minimal 8 karakter).
 
----
-
-## 🔒 3. Konfigurasi HTTPS & Akses Jarak Jauh (Cloudflare Tunnel)
-
-### Mengapa Cloudflare Tunnel?
-PWA (*Progressive Web App*) pada browser smartphone teknisi lapangan **mewajibkan protokol HTTPS** agar Service Worker dan fitur installable aktif. Cloudflare Tunnel menyediakan:
-1. Sertifikat SSL/TLS valid otomatis dari Cloudflare.
-2. Akses jarak jauh bagi Supervisor/Atasan tanpa perlu membuka port router (*Zero Open Ports*).
-3. Bekerja sempurna meskipun ISP kantor menggunakan IP dinamis atau CGNAT (*Carrier-Grade NAT*).
-
-### Langkah Setup Cloudflare Tunnel:
-1. Buka dashboard Cloudflare Zero Trust: `https://one.dash.cloudflare.com/`
-2. Masuk ke menu **Networks** > **Tunnels** > **Create a Tunnel**.
-3. Pilih tipe **Cloudflared**, beri nama tunnel (misal: `fieldops-kantor`).
-4. Salin token tunnel dan masukkan ke variabel `CLOUDFLARE_TUNNEL_TOKEN` di file `.env`.
-5. Pada tab **Public Hostname**, tambahkan rute:
-   - **Subdomain**: `inventory`
-   - **Domain**: `domainkantor.com`
-   - **Service**: `HTTP` -> `backend:3000`
-6. Restart container tunnel:
-   ```bash
-   docker compose restart cloudflared
+### Langkah 5: Membuka Aplikasi dari PC Lain di Jaringan Kantor
+1. Cek alamat IP lokal server kantor:
+   - **Ubuntu**: `hostname -I` atau `ip a`
+   - **Windows**: `ipconfig`
+   *(Contoh IP Server: `192.168.1.50`)*
+2. Dari PC/smartphone teknisi lain yang terhubung ke Wi-Fi / LAN kantor yang sama, buka browser dan akses:
    ```
-7. Aplikasi kini dapat diakses secara aman di `https://inventory.domainkantor.com` oleh atasan dari mana saja!
+   http://192.168.1.50:3000
+   ```
 
 ---
 
-## 💾 4. Kebijakan Cadangan (Backup) Terjadwal & Salinan Offsite
+## 🔄 3. Prosedur Pembaruan Aplikasi (Update Code)
+
+Bila terdapat pembaruan kode aplikasi dari repositori Git, lakukan langkah pembaruan aman berikut:
+
+1. **Lakukan Cadangan Data Terlebih Dahulu**:
+   Download berkas backup JSON dari menu **Admin / Restore Data** pada UI aplikasi, atau periksa folder `backups/`.
+2. **Tarik Kode Terbaru dari Git**:
+   ```bash
+   git pull origin main
+   ```
+3. **Build Ulang Kontainer Docker**:
+   ```bash
+   docker compose up -d --build
+   ```
+4. **Periksa Status Server**:
+   ```bash
+   docker compose ps
+   docker compose logs -f backend
+   ```
+
+---
+
+## 💾 4. Kebijakan Cadangan (Backup) & Pemulihan (Restore)
 
 ### A. Cadangan Otomatis Harian (Lokal)
-Backend secara otomatis membuat snapshot data inventori bisnis setiap 24 jam ke folder `/opt/fieldops/backups/`:
-- `backup_inventory_items_YYYY-MM-DD.json` (Hanya data master, transaksi, dan kategori — **100% bebas dari akun & kata sandi**).
+Secara otomatis, backend membuat snapshot data bisnis setiap 24 jam ke folder `./backups/` di server:
+- File `backup_inventory_items_YYYY-MM-DD.json` berisi data master barang, kategori, transaksi, dan checklist — **100% aman dan bebas dari password pengguna**.
 
-### B. Salinan Cadangan ke Lokasi Lain (Offsite via Rclone / Cron)
-Untuk mencegah kehilangan data jika server kantor mengalami kerusakan fisik, pasang cronjob untuk menyalin folder `backups/` ke Google Drive / S3 / NAS cadangan setiap malam pukul 02:00:
-```bash
-crontab -e
-```
-Tambahkan baris berikut:
-```cron
-0 2 * * * rsync -avz --delete /opt/fieldops/backups/ backupuser@192.168.1.200:/mnt/nas/fieldops_backups/
-```
+### B. Menyalin Backup ke Luar Server (Offsite Backup)
+Untuk mengamankan data dari risiko kerusakan fisik server:
+- **Salinan Manual**: Salin isi folder `./backups/` ke flashdisk / external drive.
+- **Salinan Otomatis (Ubuntu Cronjob ke NAS/S3/Drive)**:
+  ```bash
+  crontab -e
+  ```
+  Tambahkan baris cron untuk menyalin cadangan setiap pukul 02:00 pagi:
+  ```cron
+  0 2 * * * rsync -avz --delete /opt/fieldops/backups/ /mnt/nas/fieldops_backups/
+  ```
 
----
-
-## 🔄 5. Skrip Pemulihan (Restore) & Uji Coba
-
-### Menguji Prosedur Restore:
-Untuk memastikan berkas cadangan dapat dipulihkan dengan sempurna:
-```bash
-# Jalankan unit test backup & restore terpisah
-docker compose exec backend npm run test:backup
-```
-
-### Memulihkan dari File Backup JSON Tertentu:
-Jika database mengalami galat dan perlu dikembalikan ke tanggal tertentu:
-```bash
-docker compose exec backend node -e "
-  const { BackupService } = require('./dist/services/backupService');
-  const fs = require('fs');
-  const data = JSON.parse(fs.readFileSync('./backups/backup_inventory_items_2026-11-03.json', 'utf-8'));
-  BackupService.restoreInventory(data).then(console.log);
-"
-```
-Data inventori akan dipulihkan secara atomik tanpa merusak tabel akun pengguna.
+### C. Pemulihan Data (Restore)
+Jika terjadi galat atau server baru dipasang, pulihkan data melalui:
+1. Buka menu **Admin / Restore Data** pada antarmuka web.
+2. Unggah berkas `backup_inventory_items_YYYY-MM-DD.json`.
+3. Data barang dan transaksi akan dipulihkan secara atomik tanpa merusak tabel akun pengguna.
 
 ---
 
-## 🔀 6. Panduan Peralihan dari Database Demo ke Database Produksi Riil
+## 🛠️ 5. Penanganan Masalah (Troubleshooting)
 
-Saat aplikasi hendak digunakan secara penuh di kantor dengan data asli, ikuti prosedur berikut:
+### 1. Kontainer Tidak Jalan / Error saat `docker compose up`
+- **Penyebab**: Variabel `.env` belum diisi.
+- **Solusi**: Pastikan file `.env` sudah dibuat dari `.env.example` dan variabel `DB_PASSWORD`, `DB_ROOT_PASSWORD`, serta `APP_SECRET_KEY` sudah terisi.
 
-### 1. Buat Database MariaDB Produksi Bersih:
+### 2. Cara Melihat Log Server Realtime
+Gunakan perintah berikut untuk mendiagnosis error:
 ```bash
-docker compose exec mariadb mysql -u root -p -e "CREATE DATABASE fieldops_production CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+# Lihat log seluruh kontainer
+docker compose logs -f
+
+# Lihat log khusus backend saja
+docker compose logs -f backend
+
+# Lihat log khusus MariaDB saja
+docker compose logs -f mariadb
 ```
 
-### 2. Impor Skema SQL Bersih (3 File Terisolasi):
-```bash
-# A. Impor Skema Akun & Sesi
-docker compose exec -T mariadb mysql -u root -p fieldops_production < backend/src/db/migrations/01_auth_schema.sql
-
-# B. Impor Skema Inventaris & Mutasi
-docker compose exec -T mariadb mysql -u root -p fieldops_production < backend/src/db/migrations/02_inventory_schema.sql
-
-# C. Impor Skema Audit Trail
-docker compose exec -T mariadb mysql -u root -p fieldops_production < backend/src/db/migrations/03_audit_trail_schema.sql
-```
-
-### 3. Buat Akun Master Admin / Dev Superadmin Pertama:
+### 3. Lupa Password Admin
+Jalankan kembali skrip setup admin di dalam kontainer untuk mereset kata sandi akun admin:
 ```bash
 docker compose exec backend npm run setup:admin
 ```
-Pilih peran `superadmin` (Developer / Master System Governance) atau `supervisor`, lalu masukkan kata sandi kuat riil.
+Pilih `y` saat ditanya apakah ingin mereset kata sandi akun yang sudah ada.
 
-### 4. Perbarui Variabel `.env` Backend:
-Ubah nama database di `.env` menjadi database produksi riil:
-```ini
-DB_NAME=fieldops_production
-DB_PASSWORD=PasswordDatabaseProduksiAman123!
-```
-
-### 5. Restart Kontainer Backend:
-```bash
-docker compose restart backend
-```
-Sistem kini secara penuh terhubung ke database MariaDB produksi riil yang bersih dan aman.
+### 4. Bentrok Port 3000 atau 3306
+Jika port 3000 sudah digunakan oleh aplikasi lain di server kantor:
+1. Buka file `docker-compose.yml`.
+2. Ubah pemetaan port backend, misalnya dari `"3000:3000"` menjadi `"8080:3000"`.
+3. Buka aplikasi di browser via `http://<IP-SERVER>:8080`.
 
 ---
 
-## 🪟 7. Panduan Deployment pada Windows Server / Windows PC Kantor
+## 🌐 6. Panduan Khusus Per Platform Server
 
-Jika server kantor menggunakan sistem operasi **Windows** (Windows 10/11 Pro atau Windows Server 2019/2022), ikuti salah satu dari 2 opsi deployment berikut:
+### A. Windows Server / PC Windows Kantor
+1. **Pengaturan Docker Desktop**:
+   - Buka **Docker Desktop Settings** > **General** > Centang *"Start Docker Desktop when you log in"*.
+   - Pada **Resources** > **WSL Integration**, pastikan distrik Linux WSL 2 diaktifkan.
+2. **IP Statis (Fixed IP) Windows**:
+   - Pastikan PC Windows menggunakan IP lokal tetap di router kantor (misal via DHCP Reservation di Mikrotik/Router kantor) agar IP server tidak berubah-ubah saat PC di-restart.
 
-### 🌟 Opsi A: Deployment via Docker Desktop for Windows (Metode Direkomendasikan)
-
-1. **Prasyarat**:
-   - Install **Docker Desktop for Windows** (Aktifkan fitur *WSL 2 Backend*).
-   - Install **Git for Windows**.
-
-2. **Kloning Repositori & Buka PowerShell / Command Prompt (CMD)**:
-   ```cmd
-   git clone https://github.com/fath116-arch/App-storage.git C:\fieldops
-   cd C:\fieldops
-   ```
-
-3. **Salin & Sesuaikan File Variabel `.env`**:
-   ```powershell
-   copy .env.example .env
-   notepad .env
-   ```
-
-4. **Jalankan Aplikasi dengan Docker Compose**:
-   ```powershell
-   docker compose up -d
-   ```
-
-5. **Buat Akun Admin Pertama**:
-   ```powershell
-   docker compose exec backend npm run setup:admin
-   ```
-
-6. **Cloudflare Tunnel di Windows**:
-   Jika menggunakan Cloudflare Tunnel, masukkan token `CLOUDFLARE_TUNNEL_TOKEN` pada file `.env`. Container `cloudflared` di Docker Desktop akan otomatis mengamankan koneksi HTTPS.
+### B. Ubuntu Server Kantor
+1. **Pengaturan Autostart Systemd**:
+   - Docker service di Ubuntu otomatis aktif saat booting server. Untuk memastikan statusnya:
+     ```bash
+     sudo systemctl enable docker
+     ```
+2. **Hak Akses User**:
+   - Agar tidak perlu mengetik `sudo` saat menjalankan Docker, masukkan user ke grup docker:
+     ```bash
+     sudo usermod aG docker $USER
+     newgrp docker
+     ```
 
 ---
 
-### 🛠️ Opsi B: Deployment Standalone Tanpa Docker (Node.js + MariaDB Native Windows)
+## 💻 8. Panduan Alternatif Pemasangan Standalone (Tanpa Docker / Native Node.js + MariaDB)
 
-Jika PC/Server Windows kantor tidak dapat menginstall Docker Desktop:
+Jika PC atau server kantor **tidak dapat menjalankan Docker** (karena keterbatasan spesifikasi, edisi Windows tanpa fitur Virtualisasi/WSL 2, atau kebijakan sistem), gunakan metode pemasangan native berikut:
 
-1. **Prasyarat Lunak**:
-   - Install **Node.js >= 22.0 LTS (Installer .msi)** dari `https://nodejs.org/`.
-   - Install **MariaDB Server 11.x for Windows** dari `https://mariadb.org/download/`.
-   - Install **Git for Windows**.
+### Prasyarat Pemasangan Native:
+1. **Node.js LTS (v22.x+)**: Unduh & pasang dari [nodejs.org](https://nodejs.org/).
+2. **MariaDB Server (v11.x+)**: Unduh & pasang dari [mariadb.org](https://mariadb.org/download/).
+3. **Git for Windows / Linux**: Untuk mengkloning kode sumber.
 
-2. **Kloning Repositori & Buat Database MariaDB**:
-   Buka MariaDB Command Line Client atau tool GUI seperti **HeidiSQL** (bawaan MariaDB Windows):
+### Langkah-Langkah Pemasangan Standalone:
+
+1. **Kloning Repositori**:
+   ```bash
+   git clone https://github.com/fath116-arch/App-storage.git fieldops
+   cd fieldops
+   ```
+
+2. **Buat Database MariaDB**:
+   Buka MariaDB Command Line Client atau GUI seperti HeidiSQL / DBeaver, lalu jalankan:
    ```sql
    CREATE DATABASE fieldops_inventory CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
 
-3. **Impor Skema SQL ke MariaDB via CMD Windows**:
-   ```cmd
-   mysql -u root -p fieldops_inventory < backend\src\db\migrations\01_auth_schema.sql
-   mysql -u root -p fieldops_inventory < backend\src\db\migrations\02_inventory_schema.sql
-   mysql -u root -p fieldops_inventory < backend\src\db\migrations\03_audit_trail_schema.sql
+3. **Impor 3 Skema Migration SQL**:
+   - **Linux / Ubuntu**:
+     ```bash
+     mysql -u root -p fieldops_inventory < backend/src/db/migrations/01_auth_schema.sql
+     mysql -u root -p fieldops_inventory < backend/src/db/migrations/02_inventory_schema.sql
+     mysql -u root -p fieldops_inventory < backend/src/db/migrations/03_audit_trail_schema.sql
+     ```
+   - **Windows (CMD / PowerShell)**:
+     ```cmd
+     mysql -u root -p fieldops_inventory < backend\src\db\migrations\01_auth_schema.sql
+     mysql -u root -p fieldops_inventory < backend\src\db\migrations\02_inventory_schema.sql
+     mysql -u root -p fieldops_inventory < backend\src\db\migrations\03_audit_trail_schema.sql
+     ```
+
+4. **Konfigurasi File `.env`**:
+   Salin `.env.example` menjadi `.env`, lalu isi kredensial MariaDB lokal:
+   ```ini
+   PORT=3000
+   NODE_ENV=production
+   APP_SECRET_KEY=kunci_rahasia_internal_super_panjang_dan_acak_2026
+
+   # Konfigurasi MariaDB Lokal (Standalone)
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_NAME=fieldops_inventory
+   DB_USER=root
+   DB_PASSWORD=password_mariadb_lokal_anda
    ```
 
-4. **Install Dependensi & Build Project**:
-   ```cmd
-   cd C:\fieldops
-   copy .env.example .env
-   notepad .env
+5. **Install Dependensi & Build Assets**:
+   ```bash
    npm install
    npm run build
    ```
-   *(Pastikan variabel `DB_HOST=localhost`, `DB_PORT=3306`, dan `DB_PASSWORD` disesuaikan pada file `.env`)*.
 
-5. **Buat Akun Master Admin & Jalankan Server**:
-   ```cmd
+6. **Buat Akun Admin Pertama**:
+   ```bash
    npm run setup:admin
-   npm run start
    ```
 
-6. **Otomatisasi Server Berjalan saat Windows Booting (NSSM / PM2)**:
-   Agar aplikasi otomatis berjalan tanpa perlu login Windows:
-   * **Menggunakan PM2**:
-     ```cmd
-     npm install -g pm2 pm2-windows-startup
-     pm2 start server.ts --name "fieldops-app"
-     pm2-startup install
-     pm2 save
-     ```
-   * **Menggunakan NSSM (Non-Sucking Service Manager)**:
-     Download NSSM dari `https://nssm.cc/`, lalu daftarkan service Windows:
-     ```cmd
-     nssm install FieldOpsService "C:\Program Files\nodejs\node.exe" "C:\fieldops\server.ts"
-     nssm start FieldOpsService
-     ```
-
+7. **Jalankan Aplikasi Produksi**:
+   ```bash
+   npm run start
+   ```
+   *Aplikasi kini aktif dan dapat diakses dari PC lain di jaringan lokal melalui `http://<IP-SERVER-KANTOR>:3000`.*
 

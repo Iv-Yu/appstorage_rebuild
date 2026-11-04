@@ -4,7 +4,6 @@
  */
 
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase } from './db/database';
@@ -76,16 +75,33 @@ async function startServer() {
     }
   });
 
-  // Integrasi Vite Frontend untuk Development / AI Studio Preview
-  const vite = await createViteServer({
-    root: rootDir,
-    server: { middlewareMode: true },
-    appType: 'spa'
-  });
-  app.use(vite.middlewares);
+  const frontendDir = path.resolve(rootDir, 'frontend');
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (isProduction) {
+    const distDir = path.resolve(frontendDir, 'dist');
+    app.use(express.static(distDir));
+
+    // Fallback SPA routing (semua rute non-/api diarahkan ke index.html)
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) {
+        return next();
+      }
+      res.sendFile(path.resolve(distDir, 'index.html'));
+    });
+  } else {
+    // Import Vite secara dinamis hanya di mode development
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      root: frontendDir,
+      server: { middlewareMode: true },
+      appType: 'spa'
+    });
+    app.use(vite.middlewares);
+  }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[FieldOps IT Rebuild Server] Berjalan pada http://0.0.0.0:${PORT}`);
+    console.log(`[FieldOps IT Rebuild Server] Berjalan pada http://0.0.0.0:${PORT} (Mode: ${isProduction ? 'Production' : 'Development'})`);
   });
 }
 
