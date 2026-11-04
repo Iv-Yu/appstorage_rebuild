@@ -180,3 +180,97 @@ docker compose restart backend
 ```
 Sistem kini secara penuh terhubung ke database MariaDB produksi riil yang bersih dan aman.
 
+---
+
+## 🪟 7. Panduan Deployment pada Windows Server / Windows PC Kantor
+
+Jika server kantor menggunakan sistem operasi **Windows** (Windows 10/11 Pro atau Windows Server 2019/2022), ikuti salah satu dari 2 opsi deployment berikut:
+
+### 🌟 Opsi A: Deployment via Docker Desktop for Windows (Metode Direkomendasikan)
+
+1. **Prasyarat**:
+   - Install **Docker Desktop for Windows** (Aktifkan fitur *WSL 2 Backend*).
+   - Install **Git for Windows**.
+
+2. **Kloning Repositori & Buka PowerShell / Command Prompt (CMD)**:
+   ```cmd
+   git clone https://github.com/fath116-arch/App-storage.git C:\fieldops
+   cd C:\fieldops
+   ```
+
+3. **Salin & Sesuaikan File Variabel `.env`**:
+   ```powershell
+   copy .env.example .env
+   notepad .env
+   ```
+
+4. **Jalankan Aplikasi dengan Docker Compose**:
+   ```powershell
+   docker compose up -d
+   ```
+
+5. **Buat Akun Admin Pertama**:
+   ```powershell
+   docker compose exec backend npm run setup:admin
+   ```
+
+6. **Cloudflare Tunnel di Windows**:
+   Jika menggunakan Cloudflare Tunnel, masukkan token `CLOUDFLARE_TUNNEL_TOKEN` pada file `.env`. Container `cloudflared` di Docker Desktop akan otomatis mengamankan koneksi HTTPS.
+
+---
+
+### 🛠️ Opsi B: Deployment Standalone Tanpa Docker (Node.js + MariaDB Native Windows)
+
+Jika PC/Server Windows kantor tidak dapat menginstall Docker Desktop:
+
+1. **Prasyarat Lunak**:
+   - Install **Node.js >= 22.0 LTS (Installer .msi)** dari `https://nodejs.org/`.
+   - Install **MariaDB Server 11.x for Windows** dari `https://mariadb.org/download/`.
+   - Install **Git for Windows**.
+
+2. **Kloning Repositori & Buat Database MariaDB**:
+   Buka MariaDB Command Line Client atau tool GUI seperti **HeidiSQL** (bawaan MariaDB Windows):
+   ```sql
+   CREATE DATABASE fieldops_inventory CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+
+3. **Impor Skema SQL ke MariaDB via CMD Windows**:
+   ```cmd
+   mysql -u root -p fieldops_inventory < backend\src\db\migrations\01_auth_schema.sql
+   mysql -u root -p fieldops_inventory < backend\src\db\migrations\02_inventory_schema.sql
+   mysql -u root -p fieldops_inventory < backend\src\db\migrations\03_audit_trail_schema.sql
+   ```
+
+4. **Install Dependensi & Build Project**:
+   ```cmd
+   cd C:\fieldops
+   copy .env.example .env
+   notepad .env
+   npm install
+   npm run build
+   ```
+   *(Pastikan variabel `DB_HOST=localhost`, `DB_PORT=3306`, dan `DB_PASSWORD` disesuaikan pada file `.env`)*.
+
+5. **Buat Akun Master Admin & Jalankan Server**:
+   ```cmd
+   npm run setup:admin
+   npm run start
+   ```
+
+6. **Otomatisasi Server Berjalan saat Windows Booting (NSSM / PM2)**:
+   Agar aplikasi otomatis berjalan tanpa perlu login Windows:
+   * **Menggunakan PM2**:
+     ```cmd
+     npm install -g pm2 pm2-windows-startup
+     pm2 start server.ts --name "fieldops-app"
+     pm2-startup install
+     pm2 save
+     ```
+   * **Menggunakan NSSM (Non-Sucking Service Manager)**:
+     Download NSSM dari `https://nssm.cc/`, lalu daftarkan service Windows:
+     ```cmd
+     nssm install FieldOpsService "C:\Program Files\nodejs\node.exe" "C:\fieldops\server.ts"
+     nssm start FieldOpsService
+     ```
+
+
