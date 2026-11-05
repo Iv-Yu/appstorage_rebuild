@@ -163,7 +163,7 @@ router.post('/consume', async (req: express.Request, res: express.Response) => {
 });
 
 // GET /api/tickets/keys (Manajemen API Key)
-router.get('/keys', requireAuth, requireRole(['admin', 'supervisor']), async (_req, res) => {
+router.get('/keys', requireAuth, requireRole(['admin', 'warehouse_admin']), async (_req, res) => {
   try {
     const keys = await executeQuery('SELECT id, name, system_name, is_active, created_at, last_used_at FROM api_keys ORDER BY created_at DESC');
     res.json({ success: true, keys });
@@ -173,7 +173,7 @@ router.get('/keys', requireAuth, requireRole(['admin', 'supervisor']), async (_r
 });
 
 // POST /api/tickets/keys (Generate API Key Baru)
-router.post('/keys', requireAuth, requireRole(['admin', 'supervisor']), async (req: AuthenticatedRequest, res) => {
+router.post('/keys', requireAuth, requireRole(['admin', 'warehouse_admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const { name, systemName } = req.body;
     if (!name || !systemName) {

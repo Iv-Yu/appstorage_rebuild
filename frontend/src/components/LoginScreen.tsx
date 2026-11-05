@@ -19,7 +19,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'admin' | 'supervisor' | 'technician'>('admin');
+  const [role, setRole] = useState<'warehouse_admin' | 'technician'>('warehouse_admin');
   
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -46,7 +46,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           setErrorMsg(result.message || 'Username atau kata sandi tidak cocok.');
         }
       } else {
-        // Mode register
+        // Mode register (role di bawah admin & developer)
         const result = await register({
           username: username.trim(),
           name: name.trim() || username.trim(),
@@ -54,10 +54,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           password
         });
         if (result.success) {
-          setSuccessMsg('Akun berhasil dibuat! Mengalihkan ke sistem...');
+          setSuccessMsg(
+            result.message || 'Pendaftaran berhasil diajukan! Akun Anda sedang menunggu persetujuan dari Admin sebelum dapat masuk.'
+          );
+          setUsername('');
+          setName('');
+          setPassword('');
+          // Alihkan kembali ke tab login setelah 2.5 detik
           setTimeout(() => {
-            onLoginSuccess?.();
-          }, 800);
+            setMode('login');
+          }, 2500);
         } else {
           setErrorMsg(result.message || 'Gagal mendaftarkan akun baru.');
         }
@@ -153,7 +159,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Contoh: Ahmad Alfath"
+                    placeholder="Contoh: Budi Santoso"
                     className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all text-slate-900 dark:text-slate-100"
                   />
                 </div>
@@ -161,17 +167,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Peran Pengguna
+                  Peran Pengguna (Di Bawah Admin)
                 </label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as any)}
                   className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all text-slate-900 dark:text-slate-100"
                 >
-                  <option value="admin">Admin Gudang IT (Kelola Barang, Stok In & Out)</option>
-                  <option value="supervisor">Supervisor (Pengawasan & Laporan Mingguan)</option>
-                  <option value="technician">Teknisi Lapangan (Pengambilan Suku Cadang & Checklist)</option>
+                  <option value="warehouse_admin">Admin Gudang IT (Pencatatan Barang Masuk &amp; Kelola Master)</option>
+                  <option value="technician">Teknisi Lapangan (Pengambilan Suku Cadang &amp; Checklist Tas)</option>
                 </select>
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 p-2.5 rounded-md border border-amber-500/20 leading-relaxed">
+                  <strong>Pemberitahuan:</strong> Akun baru memerlukan persetujuan oleh <strong>Admin</strong> sebelum dapat digunakan. Akun Admin dan Developer hanya dapat dibuat di sisi server melalui terminal (CLI).
+                </p>
               </div>
             </>
           )}
@@ -188,7 +196,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={mode === 'register' ? 'Pilih username baru (misal: ahmad)...' : 'Masukkan username...'}
+                placeholder={mode === 'register' ? 'Pilih username baru (misal: budi)...' : 'Masukkan username...'}
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all text-slate-900 dark:text-slate-100"
               />
             </div>

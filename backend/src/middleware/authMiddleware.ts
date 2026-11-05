@@ -71,7 +71,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
 /**
  * Middleware penegakan hak akses peran (RBAC) di sisi server
  */
-export function requireRole(allowedRoles: Array<'technician' | 'admin' | 'supervisor' | 'superadmin'>) {
+export function requireRole(allowedRoles: Array<'technician' | 'warehouse_admin' | 'admin' | 'supervisor' | 'developer' | 'superadmin'>) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({
@@ -80,8 +80,8 @@ export function requireRole(allowedRoles: Array<'technician' | 'admin' | 'superv
       });
     }
 
-    // Dev Superadmin mempunyai hak akses penuh ke seluruh rute
-    if (req.user.role === 'superadmin') {
+    // Role Developer dan Admin (Boss) mempunyai hak akses penuh ke seluruh rute & fitur sistem!
+    if (req.user.role === 'developer' || req.user.role === 'admin' || (req.user.role as any) === 'superadmin') {
       return next();
     }
 

@@ -21,7 +21,7 @@ export const TrashModal: React.FC<TrashModalProps> = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const isAdminOrSpv = user?.role === 'admin' || user?.role === 'supervisor' || (user?.role as any) === 'superadmin';
+  const isAdminOrSpv = user?.role === 'admin' || user?.role === 'warehouse_admin' || user?.role === 'developer' || (user?.role as any) === 'superadmin';
 
   const filteredTrash = trashItems.filter(item => {
     const q = searchTerm.toLowerCase();

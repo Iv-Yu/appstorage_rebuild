@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type UserRole = 'admin' | 'technician' | 'supervisor' | 'superadmin';
-export type AccountStatus = 'ACTIVE' | 'PENDING_APPROVAL' | 'REJECTED';
+export type UserRole = 'developer' | 'admin' | 'warehouse_admin' | 'technician' | 'supervisor' | 'superadmin';
+export type AccountStatus = 'ACTIVE' | 'PENDING_APPROVAL' | 'REJECTED' | 'SUSPENDED';
 
 export interface UserAccount {
   id: string;

@@ -517,7 +517,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
 export const INITIAL_USERS: UserAccount[] = [
   {
     id: 'usr-master-01',
-    name: 'Ahmad Alfath (Master Admin)',
+    name: 'Hendra Wijaya (Master Admin)',
     email: 'master@fieldops.co.id',
     role: 'supervisor',
     roleLabel: 'Master Admin / Head of IT',

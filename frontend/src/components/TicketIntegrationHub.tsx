@@ -181,7 +181,7 @@ export const TicketIntegrationHub: React.FC = () => {
   const [selectedSystem, setSelectedSystem] = useState('Jira Service Management');
   const [simTicketId, setSimTicketId] = useState(`TCK-2026-${Math.floor(2000 + Math.random() * 7000)}`);
   const [simTicketTitle, setSimTicketTitle] = useState('Perbaikan Jaringan LAN & Penggantian Switch di Ruang Operasional');
-  const [simTechnician, setSimTechnician] = useState(user?.name || 'Ahmad Alfath');
+  const [simTechnician, setSimTechnician] = useState(user?.name || 'Budi Santoso');
   
   // Multiple parts selection for simulation
   const [simSelectedItems, setSimSelectedItems] = useState<Array<{ sku: string; quantity: number }>>([

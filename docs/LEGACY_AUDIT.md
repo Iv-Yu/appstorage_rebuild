@@ -160,7 +160,7 @@ Ditemukan di `legacy/src/data/mockData.ts` (baris 517–584):
 
 | User ID | Nama Pengguna | Role | Departemen | Salt | Default Password (di Kode UI) | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `usr-master-01` | Ahmad Alfath | `supervisor` (Master Admin) | Direksi & Master Governance IT | `salt_master_001` | `FieldOpsMaster2026!` / `FieldOps2026!` | `ACTIVE` |
+| `usr-master-01` | Hendra Wijaya | `supervisor` (Master Admin) | Direksi & Master Governance IT | `salt_master_001` | `FieldOpsMaster2026!` / `FieldOps2026!` | `ACTIVE` |
 | `tech-01` | Budi Santoso | `technician` | Field Operations & Support | `salt_tech_001` | `FieldOps2026!` | `ACTIVE` |
 | `adm-01` | Siti Rahma | `admin` | IT Asset & Warehouse | `salt_adm_001` | `FieldOps2026!` | `ACTIVE` |
 | `spv-01` | Hendra Wijaya, S.Kom | `supervisor` | Infrastructure & Field Ops | `salt_spv_001` | `FieldOps2026!` | `ACTIVE` |

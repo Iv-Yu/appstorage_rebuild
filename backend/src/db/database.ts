@@ -369,14 +369,36 @@ function runMemoryQuery(sql: string, params: any[]): any {
       );
     }
     if (user) {
-      if (params.length >= 4) {
+      if (upper.includes('STATUS = ?') && params.length === 2) {
+        user.status = params[0];
+        user.updated_at = new Date().toISOString();
+      } else if (params.length >= 4) {
         user.password_hash = params[0];
         user.salt = params[1] || '';
         user.role = params[2] || user.role;
         user.status = 'ACTIVE';
         user.updated_at = new Date().toISOString();
+      } else if (upper.includes('ROLE = ?') && upper.includes('STATUS = ?')) {
+        user.role = params[0];
+        user.status = params[1];
+        user.updated_at = new Date().toISOString();
       }
       memoryStore.users.set(user.id, user);
+      persistUsersToSeed();
+    }
+    return { affectedRows: 1 };
+  }
+
+  if (upper.startsWith('DELETE FROM USERS WHERE ID = ?') || upper.startsWith('DELETE FROM USERS WHERE USERNAME = ?')) {
+    const target = params[0];
+    const user = memoryStore.users.get(target) || Array.from(memoryStore.users.values()).find(u => u.username === target || u.id === target);
+    if (user) {
+      memoryStore.users.delete(user.id);
+      for (const [sId, sess] of memoryStore.sessions.entries()) {
+        if (sess.user_id === user.id) {
+          memoryStore.sessions.delete(sId);
+        }
+      }
       persistUsersToSeed();
     }
     return { affectedRows: 1 };

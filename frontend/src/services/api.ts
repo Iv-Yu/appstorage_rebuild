@@ -8,10 +8,11 @@ export interface UserProfile {
   username: string;
   name: string;
   email: string;
-  role: 'technician' | 'admin' | 'supervisor';
+  role: 'developer' | 'admin' | 'warehouse_admin' | 'technician' | 'supervisor' | 'superadmin';
   department: string;
   phone?: string;
   status: string;
+  created_at?: string;
   is_master_admin?: boolean;
 }
 
@@ -145,6 +146,62 @@ export const api = {
     const res = await fetch('/api/auth/users', { headers: getHeaders(), credentials: 'include' });
     const data = await res.json();
     return data.users || [];
+  },
+
+  async approveUser(userId: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`/api/auth/users/${userId}/approve`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include'
+    });
+    return res.json();
+  },
+
+  async rejectUser(userId: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`/api/auth/users/${userId}/reject`, {
+      method: 'POST',
+      headers: getHeaders(),
+      credentials: 'include'
+    });
+    return res.json();
+  },
+
+  async updateUserStatus(userId: string, status: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`/api/auth/users/${userId}/status`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ status }),
+      credentials: 'include'
+    });
+    return res.json();
+  },
+
+  async deleteUser(userId: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`/api/auth/users/${userId}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+      credentials: 'include'
+    });
+    return res.json();
+  },
+
+  async createUser(userData: {
+    username: string;
+    name: string;
+    email: string;
+    role: string;
+    department?: string;
+    phone?: string;
+    password: string;
+    status?: string;
+  }): Promise<{ success: boolean; message: string; user?: UserProfile }> {
+    const res = await fetch('/api/auth/users', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(userData),
+      credentials: 'include'
+    });
+    return res.json();
   },
 
   // Inventory API

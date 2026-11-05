@@ -11,7 +11,7 @@ export interface UserProfile {
   username: string;
   name: string;
   email: string;
-  role: 'technician' | 'admin' | 'supervisor' | 'superadmin';
+  role: 'technician' | 'warehouse_admin' | 'admin' | 'developer' | 'supervisor' | 'superadmin';
   department: string;
   phone: string;
   status: string;
@@ -86,8 +86,33 @@ export class AuthService {
       return { success: false, message: 'Username atau kata sandi tidak cocok.' };
     }
 
-    if (user.status && user.status === 'SUSPENDED') {
-      return { success: false, message: 'Akun Anda dinonaktifkan (SUSPENDED). Hubungi Supervisor.' };
+    // Periksa status akun (Persetujuan Admin, Suspended, Ditolak)
+    if (user.status === 'PENDING_APPROVAL') {
+      return { 
+        success: false, 
+        message: 'Akun Anda sedang menunggu persetujuan dari Admin sebelum dapat masuk.' 
+      };
+    }
+
+    if (user.status === 'REJECTED') {
+      return { 
+        success: false, 
+        message: 'Pendaftaran akun Anda ditolak oleh Admin. Hubungi tim IT.' 
+      };
+    }
+
+    if (user.status === 'SUSPENDED') {
+      return { 
+        success: false, 
+        message: 'Akun Anda dinonaktifkan (SUSPENDED). Hubungi Admin.' 
+      };
+    }
+
+    if (user.status && user.status !== 'ACTIVE') {
+      return { 
+        success: false, 
+        message: 'Akun belum aktif. Hubungi Admin.' 
+      };
     }
 
     // Verifikasi kata sandi di server
@@ -105,12 +130,15 @@ export class AuthService {
       [sessionId, user.id, clientIp, userAgent, expiresAt.toISOString()]
     );
 
+    const rawRole = user.role;
+    const effectiveRole = rawRole === 'superadmin' ? 'developer' : (rawRole === 'supervisor' ? 'admin' : rawRole);
+
     const profile: UserProfile = {
       id: user.id,
       username: user.username,
       name: user.name,
       email: user.email,
-      role: user.role,
+      role: effectiveRole,
       department: user.department,
       phone: user.phone || '',
       status: user.status
@@ -155,12 +183,15 @@ export class AuthService {
     const user = users[0];
     if (!user || user.status !== 'ACTIVE') return null;
 
+    const rawRole = user.role;
+    const effectiveRole = rawRole === 'superadmin' ? 'developer' : (rawRole === 'supervisor' ? 'admin' : rawRole);
+
     return {
       id: user.id,
       username: user.username,
       name: user.name,
       email: user.email,
-      role: user.role,
+      role: effectiveRole,
       department: user.department,
       phone: user.phone || '',
       status: user.status

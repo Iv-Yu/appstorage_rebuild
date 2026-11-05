@@ -22,7 +22,7 @@ export const CategoryManager: React.FC = () => {
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
 
-  const isAdminOrSpv = user?.role === 'admin' || user?.role === 'supervisor';
+  const isAdminOrSpv = user?.role === 'admin' || user?.role === 'warehouse_admin' || user?.role === 'developer' || (user?.role as any) === 'superadmin';
 
   const handleStartAdd = () => {
     setName('');

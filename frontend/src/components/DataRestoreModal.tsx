@@ -33,7 +33,7 @@ export const DataRestoreModal: React.FC<DataRestoreModalProps> = ({ isOpen, onCl
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [downloadUrl, setDownloadUrl] = useState<string>('/api/backup/inventory/download');
 
-  const isAuthorized = user?.role === 'admin' || user?.role === 'supervisor' || user?.is_master_admin;
+  const isAuthorized = user?.role === 'admin' || user?.role === 'developer' || (user?.role as any) === 'superadmin' || user?.is_master_admin;
 
   if (!isOpen) return null;
 

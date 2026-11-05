@@ -97,7 +97,7 @@ export const InventoryCatalog: React.FC<InventoryCatalogProps> = ({
     };
   }, [items]);
 
-  const isAdminOrSpv = user?.role === 'admin' || user?.role === 'supervisor';
+  const isAdminOrSpv = user?.role === 'admin' || user?.role === 'warehouse_admin' || user?.role === 'developer' || (user?.role as any) === 'superadmin';
 
   const handleResetFilters = () => {
     setSearchQuery('');

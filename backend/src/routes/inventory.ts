@@ -20,7 +20,7 @@ router.get('/categories', async (_req, res) => {
 });
 
 // POST /api/inventory/categories
-router.post('/categories', requireAuth, requireRole(['admin', 'supervisor']), async (req: AuthenticatedRequest, res) => {
+router.post('/categories', requireAuth, requireRole(['admin', 'warehouse_admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const { code, name, description } = req.body;
     const cat = await InventoryService.createCategory(code, name, description);
@@ -55,7 +55,7 @@ router.get('/items/:id', async (req, res) => {
 });
 
 // POST /api/inventory/items
-router.post('/items', requireAuth, requireRole(['admin', 'supervisor']), async (req: AuthenticatedRequest, res) => {
+router.post('/items', requireAuth, requireRole(['admin', 'warehouse_admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const operatorId = req.user!.id;
     const item = await InventoryService.createItem(req.body, operatorId);
@@ -66,7 +66,7 @@ router.post('/items', requireAuth, requireRole(['admin', 'supervisor']), async (
 });
 
 // PUT /api/inventory/items/:id
-router.put('/items/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req: AuthenticatedRequest, res) => {
+router.put('/items/:id', requireAuth, requireRole(['admin', 'warehouse_admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const operatorId = req.user!.id;
     const itemId = String(req.params.id);
@@ -78,7 +78,7 @@ router.put('/items/:id', requireAuth, requireRole(['admin', 'supervisor']), asyn
 });
 
 // DELETE /api/inventory/items/:id (Soft Delete)
-router.delete('/items/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req: AuthenticatedRequest, res) => {
+router.delete('/items/:id', requireAuth, requireRole(['admin', 'warehouse_admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const operatorId = req.user!.id;
     const itemId = String(req.params.id);
@@ -90,7 +90,7 @@ router.delete('/items/:id', requireAuth, requireRole(['admin', 'supervisor']), a
 });
 
 // POST /api/inventory/items/:id/restore
-router.post('/items/:id/restore', requireAuth, requireRole(['admin', 'supervisor']), async (req: AuthenticatedRequest, res) => {
+router.post('/items/:id/restore', requireAuth, requireRole(['admin', 'warehouse_admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const operatorId = req.user!.id;
     const itemId = String(req.params.id);
@@ -102,7 +102,7 @@ router.post('/items/:id/restore', requireAuth, requireRole(['admin', 'supervisor
 });
 
 // DELETE /api/inventory/items/:id/permanent (Hard Delete dari Kotak Sampah)
-router.delete('/items/:id/permanent', requireAuth, requireRole(['admin', 'supervisor']), async (req: AuthenticatedRequest, res) => {
+router.delete('/items/:id/permanent', requireAuth, requireRole(['admin', 'warehouse_admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const operatorId = req.user!.id;
     const itemId = String(req.params.id);

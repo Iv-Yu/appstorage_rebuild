@@ -8,12 +8,12 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(64) UNIQUE NOT NULL,
     name VARCHAR(128) NOT NULL,
     email VARCHAR(128) UNIQUE NOT NULL,
-    role ENUM('technician', 'admin', 'supervisor', 'superadmin') NOT NULL,
+    role ENUM('technician', 'warehouse_admin', 'admin', 'supervisor', 'developer', 'superadmin') NOT NULL,
     department VARCHAR(128) NOT NULL DEFAULT 'IT Field Operations',
     phone VARCHAR(32) DEFAULT '',
     password_hash VARCHAR(256) NOT NULL,
     salt VARCHAR(64) NOT NULL,
-    status ENUM('ACTIVE', 'SUSPENDED', 'PENDING_APPROVAL') NOT NULL DEFAULT 'ACTIVE',
+    status ENUM('ACTIVE', 'SUSPENDED', 'PENDING_APPROVAL', 'REJECTED') NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
