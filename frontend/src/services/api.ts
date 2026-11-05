@@ -33,6 +33,7 @@ export interface InventoryItem {
   unitCost?: number;
   status?: 'NORMAL' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'IN_STOCK';
   is_deleted?: boolean;
+  deleted_at?: string | null;
   notes?: string;
   lastUpdated?: string;
 }
@@ -186,6 +187,16 @@ export const api = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Gagal memulihkan barang.');
+  },
+
+  async permanentDeleteItem(id: string): Promise<void> {
+    const res = await fetch(`/api/inventory/items/${id}/permanent`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+      credentials: 'include'
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Gagal menghapus barang permanen.');
   },
 
   async createCategory(cat: { code: string; name: string; description?: string }): Promise<Category> {

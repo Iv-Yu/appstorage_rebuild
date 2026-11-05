@@ -28,6 +28,7 @@ interface InventoryContextType {
   updateItem: (id: string, updates: Partial<InventoryItem>) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
   restoreItem: (id: string) => Promise<void>;
+  permanentDeleteItem: (id: string) => Promise<void>;
   createCategory: (code: string, name: string, description?: string) => Promise<void>;
   recordStockIn: (payload: { itemId: string; quantity: number; referenceNumber?: string; sourceOrVendor?: string; notes?: string }) => Promise<any>;
   recordStockOut: (payload: { itemId: string; quantity: number; referenceNumber?: string; recipientOrDestination?: string; notes?: string }) => Promise<any>;
@@ -52,7 +53,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const VERSION = '1.0.0-rebuild';
+  const VERSION = '1.1.0';
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     const id = `toast-${Date.now()}-${Math.random()}`;
@@ -129,7 +130,18 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const restoreItem = async (id: string) => {
     try {
       await api.restoreItem(id);
-      showToast('Barang berhasil dipulihkan.', 'success');
+      showToast('Barang berhasil dipulihkan dari kotak sampah.', 'success');
+      await refreshData();
+    } catch (err: any) {
+      showToast(err.message, 'error');
+      throw err;
+    }
+  };
+
+  const permanentDeleteItem = async (id: string) => {
+    try {
+      await api.permanentDeleteItem(id);
+      showToast('Barang telah dihapus permanen dari sistem.', 'info');
       await refreshData();
     } catch (err: any) {
       showToast(err.message, 'error');
@@ -202,6 +214,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateItem,
         deleteItem,
         restoreItem,
+        permanentDeleteItem,
         createCategory,
         recordStockIn,
         recordStockOut,

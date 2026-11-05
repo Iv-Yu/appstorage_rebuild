@@ -101,4 +101,16 @@ router.post('/items/:id/restore', requireAuth, requireRole(['admin', 'supervisor
   }
 });
 
+// DELETE /api/inventory/items/:id/permanent (Hard Delete dari Kotak Sampah)
+router.delete('/items/:id/permanent', requireAuth, requireRole(['admin', 'supervisor']), async (req: AuthenticatedRequest, res) => {
+  try {
+    const operatorId = req.user!.id;
+    const itemId = String(req.params.id);
+    await InventoryService.permanentDeleteItem(itemId, operatorId);
+    res.json({ success: true, message: 'Barang berhasil dihapus permanen dari sistem inventori.' });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

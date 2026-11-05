@@ -102,4 +102,8 @@ export class InventoryService {
   static async restoreItem(id: string, operatorUserId: string): Promise<void> {
     return InventoryRepository.restoreDeletedItem(id, operatorUserId);
   }
+
+  static async permanentDeleteItem(id: string, operatorUserId: string): Promise<void> {
+    return InventoryRepository.permanentDeleteItem(id, operatorUserId);
+  }
 }

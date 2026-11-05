@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const APP_VERSION = '0.3.1';
-export const APP_VERSION_TAG = 'v0.3.1';
-export const APP_RELEASE_NAME = 'v0.3.1 (Bulk Data Restore & Firestore Sync System)';
-export const APP_BUILD_DATE = '2026-11-02';
+export const APP_VERSION = '1.1.0';
+export const APP_VERSION_TAG = 'v1.1.0';
+export const APP_RELEASE_NAME = 'v1.1.0 (Soft Delete Recycle Bin, Production Auth & MariaDB Ready)';
+export const APP_BUILD_DATE = '2026-11-05';
 
 export const SYSTEM_METADATA = {
   version: APP_VERSION,

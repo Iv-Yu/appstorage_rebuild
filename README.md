@@ -1,6 +1,6 @@
 # FieldOps IT - Sistem Manajemen Inventaris & Operasional Teknisi Lapangan
 
-![Version](https://img.shields.io/badge/version-v1.0.0--rebuild-emerald.svg)
+![Version](https://img.shields.io/badge/version-v1.1.0-emerald.svg)
 ![React](https://img.shields.io/badge/React-19.3.0-61DAFB?logo=react)
 ![Express](https://img.shields.io/badge/Express-5.0.0-000000?logo=express)
 ![MariaDB](https://img.shields.io/badge/MariaDB-11.4_LTS-003545?logo=mariadb)
@@ -12,13 +12,20 @@ FieldOps IT adalah aplikasi web manajemen inventaris suku cadang, pencatatan mut
 
 ---
 
-## 🌟 Fitur Utama (v1.0.0-rebuild)
+## 🌟 Fitur Utama (v1.1.0)
 
+- **Kotak Sampah & Pemulihan Inventori (Soft Delete Recycle Bin)**:
+  - Perlindungan penghapusan data suku cadang secara aman (*Soft Delete*).
+  - Barang yang dihapus dapat ditinjau dan dipulihkan kembali (*1-Click Restore*) kapan saja tanpa merusak nomor SKU, riwayat pergerakan stok, maupun audit trail transaksi.
+  - Opsi *Permanent Hard Delete* dengan konfirmasi berlapis bagi Admin/Supervisor.
+- **Autentikasi Produksi Bersih (Clean Production Authentication)**:
+  - Penghapusan total tombol akun demo pada form login untuk menjamin keamanan akses kantor riil.
+  - Mesin verifikasi kata sandi mendukung otentikasi internal yang fleksibel (kompatibel langsung dengan query SQL manual di MariaDB maupun hash PBKDF2 100k iterasi).
+  - Skrip inisialisasi akun master: `npm run setup:admin`.
 - **Arsitektur Terpisah (Decoupled Architecture)**:
   - Kode sumber terpisah secara bersih antara `frontend/` (React 19 SPA + Vite) dan `backend/` (Express 5 REST API + MariaDB 11).
 - **Pengamanan Autentikasi Server-Authoritative**:
-  - Pengelolaan sesi berbasis HTTP-only Cookie dan enkripsi kata sandi menggunakan algoritma **PBKDF2 SHA-256 (100.000 iterasi + 16-byte random salt)**.
-  - Otorisasi per peran (*Role-Based Access Control* / RBAC) yang ditegakkan sepenuhnya di sisi server (`backend/src/middleware/authMiddleware.ts`).
+  - Pengelolaan sesi berbasis HTTP-only Cookie dan otorisasi per peran (*Role-Based Access Control* / RBAC) yang ditegakkan sepenuhnya di sisi server (`backend/src/middleware/authMiddleware.ts`).
 - **Isolasi Data Terpisah (Separated Business vs Account Files)**:
   - Data akun pengguna (`01_auth_schema.sql`) dan data bisnis inventaris (`02_inventory_schema.sql`) tersimpan dalam skema terpisah.
   - Fitur backup otomatis memproduksi file snapshot JSON yang **100% bebas dari akun dan hash password pengguna** (*Zero Account Leakage*).

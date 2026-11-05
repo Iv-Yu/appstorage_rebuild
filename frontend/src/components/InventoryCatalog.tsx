@@ -7,12 +7,13 @@ import React, { useState, useMemo } from 'react';
 import { useInventory } from '../context/InventoryContext';
 import { useAuth } from '../context/AuthContext';
 import { InventoryItem } from '../types';
-import { Plus, Briefcase, RotateCcw } from 'lucide-react';
+import { Plus, Briefcase, RotateCcw, Trash2 } from 'lucide-react';
 import { CatalogStatusCards } from './catalog/CatalogStatusCards';
 import { CatalogToolbar } from './catalog/CatalogToolbar';
 import { CatalogItemCard } from './catalog/CatalogItemCard';
 import { CatalogItemRow } from './catalog/CatalogItemRow';
 import { CatalogEmptyState } from './catalog/CatalogEmptyState';
+import { TrashModal } from './TrashModal';
 
 interface InventoryCatalogProps {
   onOpenAddItem: () => void;
@@ -34,11 +35,12 @@ export const InventoryCatalog: React.FC<InventoryCatalogProps> = ({
   onOpenRestore
 }) => {
   const { user } = useAuth();
-  const { items, categories } = useInventory();
+  const { items, categories, trashItems } = useInventory();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [stockFilter, setStockFilter] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL');
+  const [isTrashOpen, setIsTrashOpen] = useState(false);
 
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
@@ -146,6 +148,22 @@ export const InventoryCatalog: React.FC<InventoryCatalogProps> = ({
 
             {isAdminOrSpv && (
               <button
+                onClick={() => setIsTrashOpen(true)}
+                className="px-3.5 py-2 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800/80 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-xs"
+                title="Buka Kotak Sampah untuk melihat atau memulihkan barang yang dihapus sementara (Soft Delete)"
+              >
+                <Trash2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>Kotak Sampah</span>
+                {trashItems.length > 0 && (
+                  <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 font-bold font-mono">
+                    {trashItems.length}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {isAdminOrSpv && (
+              <button
                 onClick={onOpenAddItem}
                 className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 dark:bg-emerald-600 dark:hover:bg-emerald-500 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shadow-xs"
               >
@@ -225,6 +243,12 @@ export const InventoryCatalog: React.FC<InventoryCatalogProps> = ({
           </div>
         </div>
       )}
+
+      {/* Kotak Sampah Modal */}
+      <TrashModal
+        isOpen={isTrashOpen}
+        onClose={() => setIsTrashOpen(false)}
+      />
     </div>
   );
 };

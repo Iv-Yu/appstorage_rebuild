@@ -180,4 +180,15 @@ export class InventoryRepository {
       );
     });
   }
+
+  static async permanentDeleteItem(id: string, operatorUserId: string): Promise<void> {
+    const existing = await this.findItemById(id);
+    await runTransaction(async (conn) => {
+      await conn.query('DELETE FROM items WHERE id = ?', [id]);
+      await conn.query(
+        'INSERT INTO audit_logs (user_id, action, table_name, record_id, before_state) VALUES (?, ?, ?, ?, ?)',
+        [operatorUserId, 'PERMANENT_DELETE_ITEM', 'items', id, existing ? JSON.stringify(existing) : '']
+      );
+    });
+  }
 }

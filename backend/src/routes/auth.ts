@@ -85,9 +85,9 @@ router.post('/logout', async (req: AuthenticatedRequest, res: express.Response) 
 
 /**
  * GET /api/auth/users
- * Mendapatkan daftar staf/teknisi untuk dropdown penugasan (Hanya Admin / Supervisor)
+ * Mendapatkan daftar staf/teknisi untuk dropdown penugasan (Hanya Admin / Supervisor / Superadmin)
  */
-router.get('/users', requireAuth, requireRole(['admin', 'supervisor']), async (_req, res) => {
+router.get('/users', requireAuth, requireRole(['admin', 'supervisor', 'superadmin']), async (_req, res) => {
   try {
     const users = await executeQuery<any>(
       'SELECT id, username, name, email, role, department, phone, status, created_at FROM users ORDER BY name ASC'
@@ -95,6 +95,50 @@ router.get('/users', requireAuth, requireRole(['admin', 'supervisor']), async (_
     return res.json({ success: true, users });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/auth/users
+ * Membuat akun pengguna baru dengan password hashing PBKDF2
+ */
+router.post('/users', requireAuth, requireRole(['admin', 'supervisor', 'superadmin']), async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const { username, name, email, role, department, phone, password } = req.body;
+
+    if (!username || !name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username, nama, email, dan kata sandi wajib diisi.'
+      });
+    }
+
+    const validRole = ['technician', 'admin', 'supervisor', 'superadmin'].includes(role) ? role : 'technician';
+    const existing = await executeQuery<any>('SELECT id FROM users WHERE username = ? OR email = ?', [username.trim(), email.trim()]);
+    if (existing.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Username "${username}" atau email "${email}" sudah digunakan.`
+      });
+    }
+
+    const userId = `usr-${Date.now()}`;
+    const { hash, salt } = AuthService.hashPassword(password);
+
+    await executeQuery(
+      `INSERT INTO users (id, username, name, email, role, department, phone, password_hash, salt, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+      [userId, username.trim(), name.trim(), email.trim(), validRole, department || 'IT Operations', phone || '', hash, salt]
+    );
+
+    return res.json({
+      success: true,
+      message: `Akun ${username} berhasil dibuat.`,
+      user: { id: userId, username, name, email, role: validRole, department, phone, status: 'ACTIVE' }
+    });
+  } catch (err: any) {
+    console.error('[Create User Error]:', err);
+    return res.status(500).json({ success: false, message: 'Gagal membuat akun pengguna.' });
   }
 });
 

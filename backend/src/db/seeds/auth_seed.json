@@ -7,7 +7,7 @@
     "role": "admin",
     "department": "IT Asset & Warehouse",
     "phone": "0812-3344-5566",
-    "password_hash": "b154e149ce8686709a8c9a0feaa9511c21aba2b5de3fe68d2678a14445e7ca64",
+    "password_hash": "5b33a6f24f21e02c31d7c118df482f273e19bb14d6d9510409e197a3a9fe3b3d",
     "salt": "salt_master_001",
     "status": "ACTIVE"
   },
@@ -19,7 +19,7 @@
     "role": "supervisor",
     "department": "IT Operations Management",
     "phone": "0811-9876-5432",
-    "password_hash": "a39a2dcc43e33dde694663733e3844483fad1080fdd4d8561b38f4a33b516336",
+    "password_hash": "994d8ce2997cdbcc8ffe02a412795b2dfa2275f9fa8507e1cec65485218924f7",
     "salt": "salt_spv_001",
     "status": "ACTIVE"
   },
@@ -31,7 +31,7 @@
     "role": "technician",
     "department": "Field Operations & Hardware Support",
     "phone": "0812-3456-7890",
-    "password_hash": "ae89836be05dd0bc3d86e0978fcfdc9179edf18398eb28b3ded2f07dfb945991",
+    "password_hash": "ef4755e433afc1f2ebb65e6b352b3673460a9297f9c3dbd2376a08c781992cda",
     "salt": "salt_tech_001",
     "status": "ACTIVE"
   }

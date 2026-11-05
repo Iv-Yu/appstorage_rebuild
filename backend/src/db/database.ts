@@ -354,6 +354,11 @@ function runMemoryQuery(sql: string, params: any[]): any {
     return { affectedRows: 1 };
   }
 
+  if (upper.startsWith('DELETE FROM ITEMS WHERE ID = ?')) {
+    memoryStore.items.delete(params[0]);
+    return { affectedRows: 1 };
+  }
+
   if (upper.startsWith('UPDATE ITEMS SET')) {
     if (upper.includes('IS_DELETED = TRUE')) {
       const item = memoryStore.items.get(params[0]);

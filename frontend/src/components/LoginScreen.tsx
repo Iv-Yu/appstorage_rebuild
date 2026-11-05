@@ -119,39 +119,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        {/* Quick Demo Credentials Assistant */}
-        <div className="border-t border-slate-200 dark:border-slate-800/80 pt-4 space-y-2">
-          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 text-center">
-            Pilih Akun Demo untuk Masuk Cepat:
+        {/* Footer Security Notice */}
+        <div className="border-t border-slate-200 dark:border-slate-800/80 pt-4 text-center space-y-1">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            Sistem Inventarisasi Suku Cadang Internal Kantor ISP
           </p>
-          <div className="grid grid-cols-3 gap-1.5 text-[10px]">
-            <button
-              type="button"
-              onClick={() => { setUsername('admin'); setPassword('admin123'); }}
-              className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded text-slate-800 dark:text-slate-200 font-medium text-center border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-            >
-              <span className="block font-bold">Admin</span>
-              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono">admin123</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setUsername('supervisor'); setPassword('spv123'); }}
-              className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded text-slate-800 dark:text-slate-200 font-medium text-center border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-            >
-              <span className="block font-bold">Supervisor</span>
-              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono">spv123</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setUsername('teknisi'); setPassword('tech123'); }}
-              className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded text-slate-800 dark:text-slate-200 font-medium text-center border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-            >
-              <span className="block font-bold">Teknisi</span>
-              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono">tech123</span>
-            </button>
-          </div>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center pt-1">
-            Otorisasi Sesi Server-Authoritative · MariaDB 11.x
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+            FieldOps IT · Akses Terpusat Server Lokal
           </p>
         </div>
       </div>

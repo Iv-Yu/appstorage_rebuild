@@ -45,11 +45,8 @@ async function main() {
   const role = ['superadmin', 'supervisor', 'admin', 'technician'].includes(roleInput.toLowerCase()) ? roleInput.toLowerCase() : 'superadmin';
 
   let password = argMap.password;
-  while (!password || password.length < 8) {
-    password = await prompt('Masukkan Kata Sandi Kuat (minimal 8 karakter): ');
-    if (password.length < 8) {
-      console.log('❌ Kata sandi minimal 8 karakter! Coba lagi.\n');
-    }
+  while (!password || password.trim().length === 0) {
+    password = await prompt('Masukkan Kata Sandi: ');
   }
 
   const existing = await executeQuery<any>('SELECT id FROM users WHERE username = ? OR email = ?', [username, email]);

@@ -1,147 +1,144 @@
-# Struktur Data & Model Persistensi - FieldOps IT
+# Struktur Data & Skema Database MariaDB 11.x - FieldOps IT (v1.1.0)
 
-Dokumen ini menjelaskan model data, skema koleksi Firestore, struktur kunci `localStorage`, aturan matematika kalkulasi stok, dan kebijakan pengamanan ekspor data pada **FieldOps IT**.
+Dokumen ini menjelaskan model data relasional, skema tabel MariaDB 11.x, mekanisme **Soft Delete**, aturan kalkulasi stok mutasi atomik, dan kebijakan proteksi data pada **FieldOps IT**.
 
 ---
 
-## 🗄️ 1. Skema Koleksi Firestore
+## 🗄️ 1. Skema Database Relasional MariaDB 11.x
 
-Penyimpanan jarak jauh menggunakan **Firebase Firestore** dengan koleksi utama sebagai berikut:
+Penyimpanan sistem menggunakan database relasional **MariaDB 11.4 LTS** on-premises yang terbagi ke dalam skema terisolasi:
 
-### A. Koleksi `inventory_items`
-Penyimpanan master barang/suku cadang.
+### A. Skema Data Akun & Sesi (`01_auth_schema.sql`)
 
-| Field Name | Type | Description |
+#### 1. Tabel `users`
+Menyimpan akun pengguna internal kantor (Superadmin, Supervisor, Admin, Teknisi).
+
+| Nama Kolom | Tipe Data | Deskripsi |
 | :--- | :--- | :--- |
-| `id` | `string` | Unique ID barang (misal: `item_001`) |
-| `name` | `string` | Nama barang (misal: "Kabel UTP Cat6 305m") |
-| `category` | `string` | Kategori barang ("Network", "Hardware", "CCTV") |
-| `sku` | `string` | Stock Keeping Unit / Kode Barang |
-| `serialNumber` | `string` | Serial number opsional |
-| `quantity` | `number` | Jumlah stok fisik saat ini |
-| `minQuantity` | `number` | Ambang batas alert stok minimum |
-| `unit` | `string` | Satuan ("Roll", "Pcs", "Box", "Unit") |
-| `rackLocation` | `string` | Lokasi posisi rak penyimpanan (misal: "Rak A-02") |
-| `description` | `string` | Catatan/deskripsi spesifikasi |
-| `imageUrl` | `string` | URL foto barang opsional |
-| `updatedAt` | `string` | Timestamp ISO8601 pembaruan terakhir |
+| `id` | `VARCHAR(36)` | Primary Key unik pengguna |
+| `username` | `VARCHAR(64)` | Username unik untuk login (case-insensitive) |
+| `name` | `VARCHAR(128)` | Nama lengkap pengguna |
+| `email` | `VARCHAR(128)` | Alamat email unik pengguna |
+| `role` | `ENUM(...)` | Peran: `'technician'`, `'admin'`, `'supervisor'`, `'superadmin'` |
+| `department` | `VARCHAR(128)` | Departemen / divisi kantor |
+| `phone` | `VARCHAR(32)` | Nomor telepon / WhatsApp staf |
+| `password_hash` | `VARCHAR(256)` | Hash PBKDF2 atau plain-text terenkripsi internal |
+| `salt` | `VARCHAR(64)` | Salt acak 16-byte |
+| `status` | `ENUM(...)` | Status akun: `'ACTIVE'`, `'SUSPENDED'`, `'PENDING_APPROVAL'` |
+| `created_at` | `TIMESTAMP` | Waktu pembuatan akun |
+| `updated_at` | `TIMESTAMP` | Waktu pembaruan akun terakhir |
 
----
+#### 2. Tabel `sessions`
+Menyimpan sesi aktif pengguna berbasis cookie HTTP-Only server-authoritative.
 
-### B. Koleksi `stock_transactions`
-Pencatatan log riwayat mutasi barang masuk, barang keluar, dan penyesuaian stok.
-
-| Field Name | Type | Description |
+| Nama Kolom | Tipe Data | Deskripsi |
 | :--- | :--- | :--- |
-| `id` | `string` | Unique ID transaksi |
-| `itemId` | `string` | ID referensi barang dari `inventory_items` |
-| `itemName` | `string` | Snapshot nama barang saat transaksi |
-| `type` | `string` | Jenis mutasi: `"IN"` (Masuk), `"OUT"` (Keluar), `"ADJUST"` |
-| `quantity` | `number` | Jumlah unit yang dimutasi |
-| `previousQty` | `number` | Stok sebelum transaksi |
-| `newQty` | `number` | Stok sesudah transaksi (`previousQty ± quantity`) |
-| `recipientOrSource`| `string` | Penerima (untuk OUT) atau Vendor/Sumber (untuk IN) |
-| `ticketId` | `string` | Nomor tiket/spk terkait (opsional) |
-| `notes` | `string` | Catatan/alasan mutasi |
-| `createdBy` | `string` | Nama/ID pengguna yang mencatat |
-| `timestamp` | `string` | Timestamp ISO8601 waktu mutasi |
+| `session_id` | `VARCHAR(64)` | Primary Key token sesi 32-byte acak |
+| `user_id` | `VARCHAR(36)` | Foreign Key terhubung ke tabel `users(id)` |
+| `ip_address` | `VARCHAR(45)` | Alamat IP klien saat masuk |
+| `user_agent` | `TEXT` | Perangkat / browser klien |
+| `expires_at` | `TIMESTAMP` | Waktu kedaluwarsa sesi (7 hari) |
+| `created_at` | `TIMESTAMP` | Waktu login pengguna |
 
 ---
 
-### C. Koleksi `technician_checklists`
-Pencatatan status peralatan dan suku cadang dalam tas lapangan teknisi.
+### B. Skema Master Inventori & Transaksi (`02_inventory_schema.sql`)
 
-| Field Name | Type | Description |
+#### 1. Tabel `items` (Dukungan Soft Delete)
+Menyimpan katalog suku cadang dan material IT.
+
+| Nama Kolom | Tipe Data | Deskripsi |
 | :--- | :--- | :--- |
-| `id` | `string` | Unique ID checklist |
-| `technicianId` | `string` | ID teknisi pemilik tas |
-| `technicianName` | `string` | Nama teknisi |
-| `items` | `array` | List object: `{ itemId, itemName, qtyNeeded, qtyPacked, status }` |
-| `date` | `string` | Tanggal checklist (YYYY-MM-DD) |
-| `isVerified` | `boolean` | Flag verifikasi oleh Supervisor |
+| `id` | `VARCHAR(36)` | Primary Key unik barang |
+| `sku` | `VARCHAR(64)` | Stock Keeping Unit / Kode SKU barang |
+| `barcode` | `VARCHAR(64)` | Barcode fisik scanner |
+| `name` | `VARCHAR(191)` | Nama suku cadang / material |
+| `category_id` | `VARCHAR(36)` | Foreign Key ke tabel `categories(id)` |
+| `quantity` | `INT` | Sisa stok fisik tersedia saat ini |
+| `min_stock_alert`| `INT` | Ambang batas peringatan stok kritis |
+| `unit` | `VARCHAR(32)` | Satuan barang (Pcs, Roll, Box, dsb.) |
+| `location` | `VARCHAR(64)` | Posisi rak / gudang penyimpanan |
+| `specs` | `TEXT` | Spesifikasi detail suku cadang |
+| `unit_cost` | `DECIMAL(12,2)` | Estimasi harga satuan pengadaan |
+| `status` | `ENUM(...)` | Status: `'NORMAL'`, `'LOW_STOCK'`, `'OUT_OF_STOCK'` |
+| `is_deleted` | `BOOLEAN` | **Flag Soft Delete**: `TRUE` jika berada di Kotak Sampah |
+| `deleted_at` | `TIMESTAMP NULL`| **Timestamp Soft Delete**: Waktu barang dinonaktifkan |
+| `created_at` | `TIMESTAMP` | Waktu barang ditambahkan |
+| `updated_at` | `TIMESTAMP` | Waktu data barang diubah |
 
----
+> 💡 **Prinsip Soft Delete**: Ketika barang dihapus dari katalog, sistem mengeksekusi `UPDATE items SET is_deleted = TRUE, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`. Barang dipindahkan ke antarmuka **Kotak Sampah** dan tidak dapat digunakan untuk mutasi baru, namun seluruh data historis mutasi tetap valid dan utuh.
 
-### D. Koleksi `weekly_reports`
-Arsip ringkasan pergerakan stok mingguan.
+#### 2. Tabel `categories`
+Kategori suku cadang (Fiber Optic, Wireless Radio, Router/Switch, CCTV, dsb.).
 
-| Field Name | Type | Description |
+| Nama Kolom | Tipe Data | Deskripsi |
 | :--- | :--- | :--- |
-| `id` | `string` | Unique ID laporan |
-| `weekPeriod` | `string` | Periode minggu (misal: "2026-W42") |
-| `totalStockIn` | `number` | Total unit masuk selama 1 minggu |
-| `totalStockOut` | `number` | Total unit keluar selama 1 minggu |
-| `topMovedItems` | `array` | Ringkasan item paling banyak bergerak |
-| `generatedAt` | `string` | Timestamp ISO8601 pembuatan laporan |
+| `id` | `VARCHAR(36)` | Primary Key kategori |
+| `code` | `VARCHAR(32)` | Kode kategori unik (misal: `FO`, `NET`) |
+| `name` | `VARCHAR(128)` | Nama lengkap kategori |
+| `description` | `TEXT` | Penjelasan isi kategori |
 
----
+#### 3. Tabel `transactions`
+Log mutasi atomik pergerakan barang.
 
-## 💾 2. Kunci & Struktur `localStorage`
-
-Aplikasi menyimpan state lokal untuk mendukung fungsi offline-first dengan kunci berikut:
-
-| Key Name | Content Structure | Purpose |
+| Nama Kolom | Tipe Data | Deskripsi |
 | :--- | :--- | :--- |
-| `fieldops_inventory_v2` | Array dari object `InventoryItem` | Cache lokal master barang untuk respon UI instan |
-| `fieldops_transactions_v2` | Array dari object `StockTransaction` | Cache lokal log mutasi stok |
-| `fieldops_theme` | String: `"light"` \| `"dark"` \| `"system"` | Mode preferensi tema tampilan |
-| `fieldops_user_session` | Object `{ user, token, role, expiresAt }` | Sesi aktif pengguna setelah login |
-| `fieldops_offline_queue` | Array dari object `{ action, payload, timestamp }` | Antrean mutasi offline untuk diautosinkronisasi |
+| `id` | `VARCHAR(36)` | Primary Key transaksi mutasi |
+| `type` | `ENUM('IN','OUT','ADJUST')` | Tipe mutasi (Masuk, Keluar, Penyesuaian) |
+| `item_id` | `VARCHAR(36)` | Referensi ke tabel `items(id)` |
+| `quantity` | `INT` | Jumlah unit yang dimutasi |
+| `previous_qty` | `INT` | Sisa stok sebelum mutasi |
+| `new_qty` | `INT` | Sisa stok sesudah mutasi |
+| `reference_type` | `VARCHAR(32)` | Sumber: `'TICKET'`, `'MANUAL'`, `'PO'`, `'AUDIT'` |
+| `reference_number` | `VARCHAR(64)` | Nomor tiket SPK / surat jalan |
+| `recipient_destination` | `VARCHAR(128)` | Nama teknisi / lokasi pemasangan pelanggan |
+| `user_id` | `VARCHAR(36)` | User yang mencatat transaksi |
+| `notes` | `TEXT` | Catatan transaksi |
+| `created_at` | `TIMESTAMP` | Waktu pencatatan mutasi |
 
 ---
 
-## 📐 3. Matematika Stok & Hukum Bisnis
+### C. Skema Audit Trail (`03_audit_trail_schema.sql`)
 
-1. **Aturan Mutasi Barang Masuk (Stock In)**:
+#### Tabel `audit_logs`
+Mencatat seluruh aksi administratif sensitif (penambahan, pembaruan, soft delete, pemulihan, dan hapus permanen).
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `id` | `BIGINT AUTO_INCREMENT` | Primary Key log audit |
+| `user_id` | `VARCHAR(36)` | Operator yang melakukan aksi |
+| `action` | `VARCHAR(64)` | Aksi: `'DELETE_ITEM'`, `'RESTORE_ITEM'`, `'PERMANENT_DELETE_ITEM'`, dsb. |
+| `table_name` | `VARCHAR(64)` | Tabel yang terdampak |
+| `record_id` | `VARCHAR(64)` | ID baris rekaman |
+| `before_state` | `JSON / TEXT` | Snapshot data sebelum perubahan |
+| `after_state` | `JSON / TEXT` | Snapshot data sesudah perubahan |
+| `ip_address` | `VARCHAR(45)` | Alamat IP operator |
+| `created_at` | `TIMESTAMP` | Waktu eksekusi aksi |
+
+---
+
+## 📐 2. Aturan Mutasi Stok Atomik
+
+1. **Mutasi Barang Masuk (`IN`)**:
    $$\text{Stok Baru} = \text{Stok Lama} + \text{Jumlah Masuk}$$
-   - `quantity` transaksi bernilai positif.
-   - Mengubah status alert `isLowStock = (Stok Baru <= minQuantity)`.
 
-2. **Aturan Mutasi Barang Keluar (Stock Out / Batch Out)**:
+2. **Mutasi Barang Keluar (`OUT`)**:
    $$\text{Stok Baru} = \text{Stok Lama} - \text{Jumlah Keluar}$$
-   - Validasi: $\text{Jumlah Keluar} \le \text{Stok Lama}$. Transaksi ditolak jika stok tidak mencukupi.
-   - Peringatan (*Warning Alert*) dipicu otomatis jika $\text{Stok Baru} \le \text{minQuantity}$.
-
-3. **Injeksi Formula Excel/CSV Sanitization (CWE-1236)**:
-   Setiap pencetakan kolom teks pada file `.csv` atau `.xlsx` wajib mematuhi sanitasi berikut:
-   ```typescript
-   export function sanitizeFormulaInput(value: string): string {
-     if (typeof value !== 'string') return value;
-     const unsafePrefixes = ['=', '+', '-', '@', '\t', '\r'];
-     if (unsafePrefixes.some(prefix => value.startsWith(prefix))) {
-       return `'${value}`;
-     }
-     return value;
-   }
-   ```
+   - **Invarian Validasi**: $\text{Jumlah Keluar} \le \text{Stok Lama}$. Jika stok tidak mencukupi, transaksi ditolak dan dibatalkan secara atomik (*Rollback*).
 
 ---
 
-## 📦 4. Skema File Backup JSON & Restorasi Massal
+## 🛡️ 3. Kebijakan Keamanan Ekspor Data (CWE-1236)
 
-Cadangan data terstruktur disimpan dalam format JSON pada direktori `/backups` backend dengan skema berikut:
-
-### Format Schema JSON (`fieldops-backup-*.json`)
-```json
-{
-  "version": "0.3.1",
-  "timestamp": "2026-11-02T10:00:00.000Z",
-  "workspaceId": "default",
-  "data": {
-    "inventory_items": [ ... ],
-    "stock_transactions": [ ... ],
-    "technician_checklists": [ ... ],
-    "categories": [ ... ],
-    "weekly_reports": [ ... ]
-  },
-  "summary": {
-    "totalItems": 15,
-    "totalTransactions": 42,
-    "totalChecklists": 8,
-    "totalCategories": 6
+Setiap nilai string yang diekspor ke format CSV, Excel, atau PDF wajib melalui fungsi pembersih:
+```typescript
+export function sanitizeFormulaInput(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (/^[=+\-@\t\r]/.test(str)) {
+    return "'" + str;
   }
+  return str;
 }
 ```
-
-### Prosedur Batched Writes Restorasi
-Restorasi massal diproses melalui `firestoreRestoreService.ts` dengan penulisan batch berukuran maks 350 operasi per transaksi Firestore, disinkronkan langsung ke `workspaces/{workspaceId}/**` dan cache `localStorage` lokal.
+Karakter pemicu formula eksekusi spreadsheet (`=`, `+`, `-`, `@`, `\t`, `\r`) diprefiks tanda petik tunggal (`'`).

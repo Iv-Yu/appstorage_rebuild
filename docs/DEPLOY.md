@@ -1,8 +1,8 @@
-# PANDUAN DEPLOYMENT & OPERASIONAL DOCKER (DEPLOY.MD)
+# PANDUAN DEPLOYMENT & OPERASIONAL SERVER (DEPLOY.MD)
 
-**Aplikasi**: FieldOps IT Inventory Rebuild  
-**Infrastruktur**: Docker Container (Ubuntu Server / Windows Docker Desktop)  
-**Database**: MariaDB 11.4 LTS (Container Terisolasi)  
+**Aplikasi**: FieldOps IT Inventory (Rilis Versi 1.1.0)  
+**Infrastruktur**: Docker Container (Ubuntu Server / Windows Docker Desktop) / Native Node.js  
+**Database**: MariaDB 11.4 LTS (Container Terisolasi / Standalone)  
 **Akses Jarak Jauh**: Cloudflare Tunnel (HTTPS Tanpa Buka Port Router)
 
 ---

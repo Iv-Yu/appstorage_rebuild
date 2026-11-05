@@ -50,10 +50,10 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const minAlert = item.min_stock_alert ?? item.minStockAlert ?? 0;
   const isOutOfStock = item.quantity === 0;
   const isLowStock = item.quantity <= minAlert;
-  const isAdminOrSpv = user?.role === 'admin' || user?.role === 'supervisor';
+  const isAdminOrSpv = user?.role === 'admin' || user?.role === 'supervisor' || (user?.role as any) === 'superadmin';
 
   const handleDelete = () => {
-    if (confirm(`Yakin ingin menghapus ${item.name} dari sistem inventori?`)) {
+    if (confirm(`Pindahkan "${item.name}" ke Kotak Sampah (Soft Delete)?\n\nBarang akan dinonaktifkan dari katalog aktif, dan dapat dipulihkan kapan saja melalui menu "Kotak Sampah" tanpa kehilangan riwayat stok.`)) {
       deleteItem(item.id);
       onClose();
     }
