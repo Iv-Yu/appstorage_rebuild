@@ -135,6 +135,20 @@ async function seedMemoryDb() {
 }
 
 /**
+ * Persist memory users to seeds/auth_seed.json so newly created accounts survive reloads & CLI commands
+ */
+export function persistUsersToSeed() {
+  try {
+    const seedsDir = path.join(__dirname, 'seeds');
+    const authSeedPath = path.join(seedsDir, 'auth_seed.json');
+    const users = Array.from(memoryStore.users.values());
+    fs.writeFileSync(authSeedPath, JSON.stringify(users, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[FieldOps Database] Gagal menyimpan user ke auth_seed.json:', err);
+  }
+}
+
+/**
  * Unified Query Executor
  */
 export async function executeQuery<T = any>(sql: string, params: any[] = []): Promise<T[]> {
@@ -234,12 +248,18 @@ function runMemoryQuery(sql: string, params: any[]): any {
 
   // SELECT users
   if (upper.startsWith('SELECT') && upper.includes('FROM USERS')) {
-    if (upper.includes('WHERE USERNAME = ?')) {
-      const match = Array.from(memoryStore.users.values()).find(u => u.username === params[0]);
-      return match ? [match] : [];
-    }
     if (upper.includes('WHERE ID = ?')) {
       const match = memoryStore.users.get(params[0]);
+      return match ? [match] : [];
+    }
+    if (upper.includes('WHERE') && (upper.includes('USERNAME') || upper.includes('EMAIL'))) {
+      const target1 = String(params[0] || '').toLowerCase().trim();
+      const target2 = params[1] ? String(params[1]).toLowerCase().trim() : target1;
+      const match = Array.from(memoryStore.users.values()).find(u => {
+        const uName = String(u.username || '').toLowerCase().trim();
+        const uEmail = String(u.email || '').toLowerCase().trim();
+        return uName === target1 || uEmail === target1 || uName === target2 || uEmail === target2;
+      });
       return match ? [match] : [];
     }
     return Array.from(memoryStore.users.values());
@@ -304,20 +324,61 @@ function runMemoryQuery(sql: string, params: any[]): any {
   }
 
   if (upper.startsWith('INSERT INTO USERS')) {
-    const user = {
-      id: params[0],
-      username: params[1],
-      name: params[2],
-      email: params[3],
-      role: params[4],
-      department: params[5],
-      phone: params[6],
-      password_hash: params[7],
-      salt: params[8],
-      status: params[9] || 'ACTIVE',
-      created_at: new Date().toISOString()
-    };
+    let user: any;
+    if (params.length === 7) {
+      // Query from setupAdmin: [userId, username, name, email, role, hash, salt]
+      user = {
+        id: params[0],
+        username: String(params[1]).trim(),
+        name: String(params[2]).trim(),
+        email: String(params[3]).trim(),
+        role: params[4],
+        department: 'Dev & Master System Engineering',
+        phone: '',
+        password_hash: params[5],
+        salt: params[6] || '',
+        status: 'ACTIVE',
+        created_at: new Date().toISOString()
+      };
+    } else {
+      user = {
+        id: params[0],
+        username: String(params[1]).trim(),
+        name: String(params[2]).trim(),
+        email: String(params[3]).trim(),
+        role: params[4],
+        department: params[5] || 'IT Operations',
+        phone: params[6] || '',
+        password_hash: params[7],
+        salt: params[8] || '',
+        status: params[9] || 'ACTIVE',
+        created_at: new Date().toISOString()
+      };
+    }
     memoryStore.users.set(user.id, user);
+    persistUsersToSeed();
+    return { affectedRows: 1 };
+  }
+
+  if (upper.startsWith('UPDATE USERS SET')) {
+    const lastParam = params[params.length - 1];
+    let user = memoryStore.users.get(lastParam);
+    if (!user) {
+      user = Array.from(memoryStore.users.values()).find(
+        u => u.username === lastParam || u.id === lastParam || u.email === lastParam
+      );
+    }
+    if (user) {
+      if (params.length >= 4) {
+        user.password_hash = params[0];
+        user.salt = params[1] || '';
+        user.role = params[2] || user.role;
+        user.status = 'ACTIVE';
+        user.updated_at = new Date().toISOString();
+      }
+      memoryStore.users.set(user.id, user);
+      persistUsersToSeed();
+    }
     return { affectedRows: 1 };
   }
 

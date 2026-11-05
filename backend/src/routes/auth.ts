@@ -57,6 +57,73 @@ router.post('/login', async (req: AuthenticatedRequest, res: express.Response) =
 });
 
 /**
+ * POST /api/auth/register
+ * Pendaftaran akun pengguna internal kantor (langsung aktif dan login otomatis)
+ */
+router.post('/register', async (req: express.Request, res: express.Response) => {
+  try {
+    const { username, name, email, role, department, phone, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username dan kata sandi wajib diisi.'
+      });
+    }
+
+    const cleanUsername = String(username).trim();
+    const cleanPassword = String(password).trim();
+    const cleanName = name ? String(name).trim() : cleanUsername;
+    const cleanEmail = email ? String(email).trim() : `${cleanUsername.toLowerCase()}@fieldops.local`;
+
+    const existing = await executeQuery<any>(
+      'SELECT id FROM users WHERE LOWER(TRIM(username)) = LOWER(?) OR LOWER(TRIM(email)) = LOWER(?)',
+      [cleanUsername, cleanEmail]
+    );
+
+    if (existing && existing.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Username "${cleanUsername}" atau email sudah terdaftar. Silakan langsung masuk.`
+      });
+    }
+
+    const validRole = ['technician', 'admin', 'supervisor', 'superadmin'].includes(role) ? role : 'admin';
+    const userId = `usr-${Date.now()}`;
+    const { hash, salt } = AuthService.hashPassword(cleanPassword);
+
+    await executeQuery(
+      `INSERT INTO users (id, username, name, email, role, department, phone, password_hash, salt, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, cleanUsername, cleanName, cleanEmail, validRole, department || 'IT Operations', phone || '', hash, salt, 'ACTIVE']
+    );
+
+    // Auto-login setelah registrasi
+    const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'Unknown Client';
+    const loginResult = await AuthService.login(cleanUsername, cleanPassword, clientIp, userAgent);
+
+    if (loginResult.success && loginResult.sessionToken) {
+      const isProduction = process.env.NODE_ENV === 'production';
+      res.setHeader(
+        'Set-Cookie',
+        `fieldops_session=${loginResult.sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 3600}${isProduction ? '; Secure' : ''}`
+      );
+    }
+
+    return res.json({
+      success: true,
+      message: `Akun "${cleanUsername}" berhasil dibuat dan siap digunakan!`,
+      user: loginResult.user || { id: userId, username: cleanUsername, name: cleanName, role: validRole },
+      token: loginResult.sessionToken
+    });
+  } catch (err: any) {
+    console.error('[Register User Error]:', err);
+    return res.status(500).json({ success: false, message: 'Gagal membuat akun pengguna baru.' });
+  }
+});
+
+/**
  * GET /api/auth/me
  * Mengambil profil pengguna aktif dari sesi terverifikasi server
  */

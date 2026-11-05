@@ -107,6 +107,21 @@ export const api = {
     return data;
   },
 
+  async register(userData: { username: string; name?: string; email?: string; role?: string; department?: string; password: string }): Promise<{ success: boolean; user?: UserProfile; message?: string }> {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData),
+      credentials: 'include'
+    });
+    const data = await res.json();
+    if (data.token) {
+      authToken = data.token;
+      try { localStorage.setItem('fieldops_token', data.token); } catch {}
+    }
+    return data;
+  },
+
   async getMe(): Promise<{ success: boolean; user?: UserProfile }> {
     const res = await fetch('/api/auth/me', {
       headers: getHeaders(),

@@ -11,6 +11,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, passwordAttempt: string) => Promise<{ success: boolean; message?: string }>;
+  register: (userData: { username: string; name?: string; email?: string; role?: string; department?: string; password: string }) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
 }
 
@@ -56,6 +57,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const register = async (userData: { username: string; name?: string; email?: string; role?: string; department?: string; password: string }) => {
+    try {
+      const res = await api.register(userData);
+      if (res.success && res.user) {
+        setUser(res.user);
+        return { success: true, message: res.message };
+      }
+      return { success: false, message: res.message || 'Pendaftaran akun gagal.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Terjadi kesalahan jaringan saat pendaftaran.' };
+    }
+  };
+
   const logout = async () => {
     try {
       await api.logout();
@@ -65,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

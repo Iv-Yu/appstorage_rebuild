@@ -69,8 +69,8 @@ async function main() {
 
   await executeQuery(
     `INSERT INTO users (id, username, name, email, role, department, phone, password_hash, salt, status) 
-     VALUES (?, ?, ?, ?, ?, 'Dev & Master System Engineering', '', ?, ?, 'ACTIVE')`,
-    [userId, username, name, email, role, hash, salt]
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, username, name, email, role, 'Dev & Master System Engineering', '', hash, salt, 'ACTIVE']
   );
 
   console.log('\n✅ Akun Master Admin / Dev Superadmin berhasil dibuat!');
