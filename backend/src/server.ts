@@ -14,6 +14,7 @@ import transactionRoutes from './routes/transactions';
 import ticketRoutes from './routes/ticketIntegration';
 import checklistRoutes from './routes/checklist';
 import reportRoutes from './routes/reports';
+import whatsappRoutes from './routes/whatsapp';
 import { BackupService } from './services/backupService';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -64,6 +65,7 @@ async function startServer() {
   app.use('/api/tickets', ticketRoutes);
   app.use('/api/checklists', checklistRoutes);
   app.use('/api/reports', reportRoutes);
+  app.use('/api/whatsapp', whatsappRoutes);
 
   // Endpoint Backup Khusus Data Barang (Bebas Akun)
   app.get('/api/backup/inventory/download', async (_req, res) => {

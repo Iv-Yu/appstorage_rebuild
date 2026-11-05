@@ -115,7 +115,21 @@ export class WhatsAppService {
         }),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { message: `Server mengembalikan status HTTP ${res.status} (${res.statusText})` };
+      }
+
+      if (!res.ok) {
+        return {
+          success: false,
+          message: data.message || `Gagal mengirim notifikasi (HTTP ${res.status}).`,
+        };
+      }
+
       return {
         success: data.success ?? res.ok,
         message: data.message || 'Sinyal WhatsApp terkirim',
@@ -140,10 +154,16 @@ export class WhatsAppService {
         headers: getAuthHeaders(),
         body: JSON.stringify({ targetPhone }),
       });
-      const data = await res.json();
+      let data: any = {};
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { message: `Server mengembalikan status HTTP ${res.status} (${res.statusText})` };
+      }
       return {
-        success: data.success,
-        message: data.message,
+        success: data.success ?? res.ok,
+        message: data.message || (res.ok ? 'Uji koneksi terkirim' : `Gagal HTTP ${res.status}`),
         details: data.details,
       };
     } catch (err: any) {
