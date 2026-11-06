@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cetak Label FieldOps</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+:root{--bg:#f1f4f2;--panel:#fff;--ink:#16201a;--mute:#5b6a61;--line:#d6ded9;--green:#0a9f4a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1511;--panel:#18211c;--ink:#e8efea;--mute:#9aaaa1;--line:#2b382f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1511;--panel:#18211c;--ink:#e8efea;--mute:#9aaaa1;--line:#2b382f;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Plus Jakarta Sans',system-ui,'Segoe UI',sans-serif}
+.app{display:grid;grid-template-columns:330px 1fr;gap:24px;padding:20px;max-width:1280px;margin:0 auto}
+.ui{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;align-self:start;position:sticky;top:20px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mute);font-size:13px;margin:0 0 18px;line-height:1.5}
+.ui h3{font-size:13px;margin:18px 0 8px}
+.cat{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:14px;border-bottom:1px solid var(--line)}
+.cat span{margin-left:auto;color:var(--mute);font-size:12px}
+input[type=checkbox],input[type=radio]{accent-color:var(--green);width:16px;height:16px}
+.seg{display:flex;gap:8px}.seg label{flex:1;text-align:center;border:1px solid var(--line);border-radius:10px;padding:9px 0;cursor:pointer;font-size:14px}
+.seg input{position:absolute;opacity:0}.seg label:has(input:checked){background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
+.seg label:has(input:focus-visible){outline:2px solid var(--green);outline-offset:2px}
+select,input[type=text]{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
+.hint{color:var(--mute);font-size:12px;margin:6px 0 0;line-height:1.5}
+.row{display:flex;align-items:center;gap:10px;font-size:14px;margin-top:14px}
+button{font:inherit;cursor:pointer}
+.link{background:none;border:0;color:var(--green);font-size:13px;padding:0;margin-top:8px;font-weight:600}
+.go{width:100%;margin-top:20px;padding:13px;border:0;border-radius:12px;background:var(--green);color:#fff;font-weight:800;font-size:15px}
+.go:disabled{opacity:.4;cursor:not-allowed}
+.sum{margin-top:16px;font-size:13px;color:var(--mute)}
+.empty{padding:60px 20px;text-align:center;color:var(--mute)}
+.pw{margin:0 auto 18px;width:calc(210mm*var(--s,1));height:calc(296.5mm*var(--s,1));box-shadow:0 2px 14px rgba(0,0,0,.22)}
+.page{position:relative;width:210mm;height:296.5mm;background:#fff;overflow:hidden;transform:scale(var(--s,1));transform-origin:0 0;color:#111}
+.dot{position:absolute;width:1mm;height:1mm;border-radius:50%;background:#000;transform:translate(-50%,-50%)}
+.label{position:absolute;left:10mm;width:190mm;height:89mm;box-sizing:border-box;border:.5mm solid #111;border-radius:6mm;padding:3.5mm 4mm;display:flex;flex-direction:column;gap:2.5mm;background:#fff}
+.lh{display:flex;align-items:center;gap:3mm;height:19mm;flex:none}
+.logo{width:11mm;flex:none}
+.brand{display:flex;flex-direction:column;justify-content:center;height:14mm;padding-right:3mm;border-right:.4mm solid #111;flex:none}
+.brand b{font-size:15pt;font-weight:800;line-height:1}.brand i{font-style:normal;color:#0a9f4a}
+.brand small{font-size:4.6pt;letter-spacing:.04em;margin-top:1mm;font-weight:600}
+.ttl{flex:1;min-width:0}.ttl h2{margin:0;font-weight:800;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttl small{display:block;font-size:5.4pt;letter-spacing:.12em;margin-top:1.2mm;color:#333;font-weight:600}
+.ico{width:16mm;height:16mm;background:#0a9f4a;border-radius:3.5mm;display:grid;place-items:center;flex:none}.ico svg{width:9.5mm}
+.lb{flex:1;min-height:0;display:grid;grid-template-columns:1fr 44mm;gap:3mm}
+.tbs{display:grid;grid-template-columns:1fr 1fr;gap:2mm;min-height:0;min-width:0}.tb{display:grid;grid-template-columns:7mm 1fr 1fr;grid-template-rows:6mm repeat(5,1fr);border:.35mm solid #222;border-radius:2.5mm;overflow:hidden;min-height:0;min-width:0}
+.c{border-right:.25mm solid #444;border-bottom:.25mm solid #444;padding:0 1.2mm;display:flex;align-items:center;font-size:7.5pt;line-height:1.1;overflow:hidden;overflow-wrap:anywhere;min-width:0}
+.c:nth-child(3n){border-right:0}.c:nth-last-child(-n+3){border-bottom:0}
+.c.h{background:#e4e4e4;font-weight:800;font-size:6.5pt;justify-content:center;padding:0}.c.n{justify-content:center;padding:0}
+.qr{border-left:.5mm solid #111;padding-left:3mm;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.qb{width:31mm;height:31mm;box-sizing:border-box;padding:2mm;border:.6mm solid #0a9f4a;border-radius:3mm}.qb svg{width:100%;height:100%;display:block}
+.qr span{font-size:6pt;font-weight:800;text-align:center;margin-top:2.5mm;line-height:1.25}
+@media (max-width:860px){.app{grid-template-columns:1fr;padding:12px}.ui{position:static}}
+@media print{
+@page{size:A4 portrait;margin:0}
+html,body{background:#fff}.ui{display:none}.app{display:block;padding:0;max-width:none}
+.pw{width:210mm;height:auto;margin:0;box-shadow:none;break-after:page}.pw:last-child{break-after:auto}
+.page{transform:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="ui">
+<h1>Cetak label katalog</h1>
+<p class="sub">Pilih katalog, tentukan jumlah label per lembar, lalu cetak di kertas A4.</p>
+<h3>Katalog</h3><div id="cats"></div>
+<button class="link" id="all" type="button">Pilih semua</button>
+<h3>Label per lembar</h3>
+<div class="seg" id="per"><label><input type="radio" name="per" value="1">1</label><label><input type="radio" name="per" value="2">2</label><label><input type="radio" name="per" value="3" checked>3</label></div>
+<h3>Mulai dari slot</h3>
+<select id="start"><option value="1">Slot 1 (atas)</option><option value="2">Slot 2 (tengah)</option><option value="3">Slot 3 (bawah)</option></select>
+<p class="hint">Berlaku di lembar pertama saja. Pakai untuk melanjutkan kertas yang baru terpakai sebagian.</p>
+<div class="row"><input type="checkbox" id="dots" checked><label for="dots">Tampilkan titik potong</label></div>
+<h3>Alamat dasar QR</h3>
+<input type="text" id="base" value="https://fieldops.local/katalog/">
+<p class="hint">QR berisi alamat ini diikuti kode katalog.</p>
+<div class="sum" id="sum"></div>
+<button class="go" id="print" type="button">Cetak</button>
+<p class="hint">Cetak dengan skala 100% dan aktifkan background graphics. Setelah cetak, ukur jarak antar titik: 195 × 94 mm.</p>
+</aside>
+<main class="pages" id="pages"></main>
+</div>
+<script>
+const DATA=[
+{id:'adaptor',nama:'Adaptor',p:[['Adaptor 12V','12V / 1A'],['Adaptor 12V','12V / 3A'],['Adaptor 5V','5V / 2A'],['Adaptor 9V','9V / 1A'],['Adaptor 24V','24V / 1A'],['Adaptor 12V PoE','12V / 2A / injector'],['Adaptor ONU','12V / 1A / jack 5.5 mm']]},
+{id:'kabel',nama:'Kabel',p:[['Kabel LAN','Cat6 / 305 m'],['Kabel Dropcore','1 core / 150 m'],['Patchcord','Cat6 / 1 m'],['Patchcord','Cat6 / 3 m']]},
+{id:'modem',nama:'Modem/ONU',p:[['Modem Fiberhome','GPON / 1GE / WiFi 2.4G'],['Modem Fiberhome','GPON / 4GE / dual band'],['Modem 4G','4G LTE / WiFi'],['Modem 5G','5G / WiFi 6']]},
+{id:'router',nama:'Router',p:[['MikroTik hAP','ac2'],['MikroTik RB941','hAP lite'],['MikroTik RB750','Gr3']]},
+{id:'konektor',nama:'Konektor',p:[['Konektor RJ45','Cat6 / 100 pcs'],['Fast connector','SC/UPC'],['Sleeve splicing','60 mm']]},
+{id:'splitter',nama:'Splitter',p:[['Splitter PLC','1:2'],['Splitter PLC','1:4'],['Splitter PLC','1:8']]}
+];
+const PT=5,ROWS=PT*2,$=id=>document.getElementById(id);
+const st={sel:new Set(['adaptor','kabel','modem']),per:3,start:1,dots:true};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function qrSvg(t){try{const q=qrcode(0,'M');q.addData(t);q.make();const n=q.getModuleCount();let d='';
+for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))d+='M'+c+' '+r+'h1v1h-1z';
+return '<svg viewBox="0 0 '+n+' '+n+'" shape-rendering="crispEdges"><path d="'+d+'" fill="#000"/></svg>'}catch(e){return '<svg viewBox="0 0 10 10"><text x="5" y="6" text-anchor="middle" font-size="3">QR</text></svg>'}}
+const LOGO='<svg class="logo" viewBox="0 0 40 40"><path d="M6 36 17 5h21l-2 7H23l-1.5 5H33l-2 7H19.500L15 36z" fill="#0a9f4a"/><path d="M6 36 17 5h6L12 36z" fill="#056d31"/></svg>';
+const CUBE='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M12 2.500 20.500 7v10L12 21.500 3.500 17V7z"/><path d="M3.500 7 12 11.500 20.500 7M12 11.500v10"/></svg>';
+function labels(){const out=[];DATA.filter(d=>st.sel.has(d.id)).forEach(d=>{const n=Math.max(1,Math.ceil(d.p.length/ROWS));
+for(let i=0;i<n;i++)out.push({d,i,n,rows:d.p.slice(i*ROWS,(i+1)*ROWS),off:i*ROWS})});return out}
+function paginate(ls){const pages=[];let i=0,first=true;while(i<ls.length){const s=first?st.start-1:0;const cap=Math.min(3-s,st.per);const sl=[];
+for(let k=0;k<cap&&i<ls.length;k++)sl.push({slot:s+k,l:ls[i++]});pages.push(sl);first=false}return pages}
+function labelHtml(l,slot){const nm=l.d.nama.toUpperCase()+(l.n>1?' ('+(l.i+1)+'/'+l.n+')':'');
+const fs=l.d.nama.length<=16?22:l.d.nama.length<=24?17:13;const tb=h=>{let c='<div class="c h">NO</div><div class="c h">NAMA PRODUK</div><div class="c h">TIPE</div>';for(let r=h;r<h+PT;r++){const p=l.rows[r];c+='<div class="c n">'+(p?l.off+r+1:'')+'</div><div class="c">'+(p?esc(p[0]):'')+'</div><div class="c">'+(p?esc(p[1]):'')+'</div>'}return '<div class="tb">'+c+'</div>'};const cells=tb(0)+tb(PT);
+return '<div class="label" style="top:'+(10+94*slot)+'mm"><div class="lh">'+LOGO+'<div class="brand"><b>Field<i>Ops</i></b><small>INVENTORY MANAGEMENT SYSTEM</small></div><div class="ttl"><h2 style="font-size:'+fs+'pt">'+esc(nm)+'</h2><small>DATA BARANG • LEBIH TERTIB • LEBIH MUDAH</small></div><div class="ico">'+CUBE+'</div></div><div class="lb"><div class="tbs">'+cells+'</div><div class="qr"><div class="qb">'+qrSvg($('base').value+l.d.id)+'</div><span>SCAN UNTUK<br>LIHAT DETAIL</span></div></div></div>'}
+function dotsHtml(sl){const seen=new Set();let h='';sl.forEach(s=>{const t=7.5+94*s.slot;[[7.5,t],[202.5,t],[7.5,t+94],[202.5,t+94]].forEach(([x,y])=>{const k=x+','+y;if(!seen.has(k)){seen.add(k);h+='<i class="dot" style="left:'+x+'mm;top:'+y+'mm"></i>'}})});return h}
+function fit(){$('pages').style.setProperty('--s',Math.min(1,$('pages').clientWidth/793.7))}
+function render(){const ls=labels(),pages=paginate(ls);
+$('pages').innerHTML=pages.length?pages.map(sl=>'<div class="pw"><div class="page">'+sl.map(s=>labelHtml(s.l,s.slot)).join('')+(st.dots?dotsHtml(sl):'')+'</div></div>').join(''):'<div class="empty">Pilih minimal satu katalog di panel kiri.</div>';
+$('sum').textContent=ls.length+' label · '+pages.length+' lembar A4';$('print').disabled=!pages.length;fit()}
+$('cats').innerHTML=DATA.map(d=>'<label class="cat"><input type="checkbox" value="'+d.id+'"'+(st.sel.has(d.id)?' checked':'')+'>'+esc(d.nama)+'<span>'+d.p.length+' produk</span></label>').join('');
+$('cats').addEventListener('change',e=>{e.target.checked?st.sel.add(e.target.value):st.sel.delete(e.target.value);render()});
+$('all').onclick=()=>{const all=st.sel.size<DATA.length;st.sel=new Set(all?DATA.map(d=>d.id):[]);document.querySelectorAll('#cats input').forEach(i=>i.checked=all);$('all').textContent=all?'Kosongkan':'Pilih semua';render()};
+$('per').addEventListener('change',e=>{st.per=+e.target.value;render()});
+$('start').onchange=e=>{st.start=+e.target.value;render()};
+$('dots').onchange=e=>{st.dots=e.target.checked;render()};
+$('base').oninput=render;$('print').onclick=()=>window.print();
+window.addEventListener('resize',fit);render();
+</script>
+</body>
+</html>

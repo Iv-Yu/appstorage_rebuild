@@ -98,22 +98,192 @@ Log mutasi atomik pergerakan barang.
 
 ---
 
-### C. Skema Audit Trail (`03_audit_trail_schema.sql`)
+### D. Skema Fondasi v2 & Keamanan (`04_v2_foundation_schema.sql`)
 
-#### Tabel `audit_logs`
-Mencatat seluruh aksi administratif sensitif (penambahan, pembaruan, soft delete, pemulihan, dan hapus permanen).
+#### 1. Tabel `sesi` (Server-Authoritative Sesi & Rotasi Token)
+Menyimpan catatan sesi server terisolasi dengan rotasi refresh token dan validasi perangkat (Device ID Hash).
 
 | Nama Kolom | Tipe Data | Deskripsi |
 | :--- | :--- | :--- |
-| `id` | `BIGINT AUTO_INCREMENT` | Primary Key log audit |
-| `user_id` | `VARCHAR(36)` | Operator yang melakukan aksi |
-| `action` | `VARCHAR(64)` | Aksi: `'DELETE_ITEM'`, `'RESTORE_ITEM'`, `'PERMANENT_DELETE_ITEM'`, dsb. |
-| `table_name` | `VARCHAR(64)` | Tabel yang terdampak |
-| `record_id` | `VARCHAR(64)` | ID baris rekaman |
-| `before_state` | `JSON / TEXT` | Snapshot data sebelum perubahan |
-| `after_state` | `JSON / TEXT` | Snapshot data sesudah perubahan |
-| `ip_address` | `VARCHAR(45)` | Alamat IP operator |
-| `created_at` | `TIMESTAMP` | Waktu eksekusi aksi |
+| `id` | `VARCHAR(64)` | Primary Key unik token sesi |
+| `user_id` | `VARCHAR(36)` | Foreign Key terhubung ke tabel `users(id)` |
+| `refresh_hash` | `VARCHAR(128)` | Hash SHA-256 token penyegar aktif |
+| `device_id_hash` | `VARCHAR(128)` | Hash SHA-256 ID perangkat peramban |
+| `user_agent` | `TEXT` | Informasi peramban & OS pengguna |
+| `ip` | `VARCHAR(45)` | Alamat IP koneksi terakhir |
+| `dibuat_pada` | `TIMESTAMP` | Waktu sesi pertama kali dibuat |
+| `aktivitas_terakhir` | `TIMESTAMP` | Waktu aktivitas mutasi/kueri terakhir |
+| `kedaluwarsa_mutlak` | `TIMESTAMP` | Batas kedaluwarsa mutlak sesi (12 jam) |
+| `dicabut_pada` | `TIMESTAMP NULL` | Waktu sesi dicabut (logout / kuota / token reuse) |
+
+#### 2. Tabel `pengaturan` (Konfigurasi Dinamis Bebas Hardcode)
+Menyimpan parameter konfigurasi dan ambang batas sistem.
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `kunci` | `VARCHAR(80)` | Primary Key nama konfigurasi |
+| `nilai` | `TEXT` | Nilai konfigurasi (string/angka/JSON) |
+| `keterangan` | `TEXT` | Penjelasan fungsi parameter |
+| `diperbarui_pada` | `TIMESTAMP` | Waktu pembaruan terakhir |
+
+#### 3. Tabel `transaksi` & `transaksi_detail` (Append-Only Mutasi Format AKT)
+Mencatat seluruh transaksi perpindahan/mutasi suku cadang dengan format ID Aktivitas `AKT-YYYYMMDD-NNNN`.
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `id` | `VARCHAR(36)` | Primary Key transaksi |
+| `id_aktivitas` | `VARCHAR(32)` | ID Aktivitas unik harian (`AKT-YYYYMMDD-NNNN`) |
+| `aksi` | `VARCHAR(64)` | Jenis aksi mutasi (`tambah`, `keluar`, `pindah_box`, dsb.) |
+| `pelaku_id` | `VARCHAR(36)` | ID pengguna yang mengeksekusi mutasi |
+| `penyetuju_id` | `VARCHAR(36) NULL` | ID pengguna yang menyetujui mutasi (jika ada) |
+| `request_id` | `VARCHAR(36) NULL` | ID permintaan teknisi terkait |
+| `box_asal` / `box_tujuan` | `VARCHAR(32) NULL` | Kode box penyimpanan asal & tujuan |
+| `catatan` | `TEXT NULL` | Keterangan pekerjaan / tiket |
+| `waktu` | `TIMESTAMP` | Waktu pencatatan mutasi di server |
+
+#### 4. Tabel `sampah_hapus` (Permanent Delete Lapis 2 dengan Retensi 14 Hari)
+Menyimpan snapshot data terhapus permanen sebelum dimusnahkan secara otomatis.
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `id` | `VARCHAR(36)` | Primary Key unik entri sampah |
+| `jenis_objek` | `VARCHAR(32)` | Jenis entri: `'item'`, `'produk'`, `'tipe'`, `'box'`, `'akun'` |
+| `objek_id` | `VARCHAR(64)` | ID asli objek saat aktif |
+| `snapshot` | `LONGTEXT` | Snapshot JSON objek asli dan seluruh relasi turunannya |
+| `dihapus_oleh` | `VARCHAR(36)` | Pengguna yang melakukan penghapusan |
+| `dihapus_pada` | `TIMESTAMP` | Waktu eksekusi penghapusan |
+| `aktivitas_id` | `VARCHAR(32)` | ID Aktivitas log transaksi terkait |
+| `purge_setelah` | `TIMESTAMP` | Batas kedaluwarsa simpan (`dihapus_pada` + 14 hari) |
+| `status` | `VARCHAR(32)` | Status: `'menunggu'`, `'dipulihkan'`, `'dibersihkan'` |
+
+#### 5. Tabel `token_konfirmasi` (Konfirmasi Sensitif Bertingkat)
+Menyimpan token verifikasi sekali pakai (*single-use*, TTL 120 detik) untuk penegakan keamanan di server.
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `id` | `VARCHAR(64)` | Primary Key ID token |
+| `token_hash` | `VARCHAR(128)` | Hash SHA-256 token rahasia |
+| `user_id` | `VARCHAR(36)` | ID pengguna yang meminta konfirmasi |
+| `action_type` | `VARCHAR(64)` | Jenis aksi (`request_approve`, `permanent_delete`, dsb.) |
+| `target_id` | `VARCHAR(64)` | ID objek sasaran aksi |
+| `tier` | `INT` | Tingkat konfirmasi (`2` atau `3`) |
+| `expires_at` | `TIMESTAMP` | Waktu kedaluwarsa token (120 detik) |
+| `used_at` | `TIMESTAMP NULL` | Waktu token dikonsumsi (anti-replay) |
+
+---
+
+### E. Skema Katalog Bertingkat v2 (`05_v2_catalog_schema.sql`)
+
+Struktur katalog bertingkat menggantikan kategori datar menjadi hierarki dinamis: `Jenis` -> `Atribut` -> `Produk` -> `Tipe` (Varian) -> `Item` (Fisik) / `Stok Jumlah`.
+
+#### 1. Tabel `jenis` (Golongan Besar Katalog)
+Menyimpan pengelompokan utama suku cadang (Adaptor, Kabel, Modem/ONU, Router, SFP, dsb.).
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `id` | `INT UNSIGNED AUTO_INCREMENT` | Primary Key unik jenis |
+| `nama` | `VARCHAR(80)` | Nama jenis (unik) |
+| `sumber_id_bawaan` | `VARCHAR(32)` | Sumber ID bawaan (`scan_sn`, `otomatis`, `manual`, `tanpa_id`) |
+| `prefix_id_bawaan` | `VARCHAR(10) NULL` | Prefix ID bawaan (misal: `ADP`, `MOD`) |
+| `aktif` | `TINYINT(1)` | Status aktif (`1` = aktif, `0` = nonaktif) |
+| `dibuat_pada` | `DATETIME` | Waktu pembuatan jenis |
+
+#### 2. Tabel `atribut` & `atribut_opsi` (Definisi Spesifikasi Dinamis)
+Kolom spesifikasi yang didefinisikan per Jenis (Tegangan, Arus, Jenis Jack, Jaringan, dsb.).
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `id` | `INT UNSIGNED AUTO_INCREMENT` | Primary Key unik atribut |
+| `jenis_id` | `INT UNSIGNED` | Foreign Key ke `jenis(id)` |
+| `kode` | `VARCHAR(40)` | Kode teknis atribut (misal: `tegangan`, `arus`) |
+| `nama` | `VARCHAR(80)` | Nama label tampilan (misal: "Tegangan", "Arus Listrik") |
+| `tipe_isian` | `VARCHAR(20)` | Tipe data isian: `'angka'`, `'pilihan'`, `'teks'` |
+| `satuan` | `VARCHAR(16) NULL` | Satuan nilai numerik (`V`, `A`, `m`, `dBm`, dsb.) |
+| `wajib` | `TINYINT(1)` | Wajib diisi saat membuat tipe baru (`1` = wajib) |
+| `urutan` | `SMALLINT` | Urutan tampilan dan urutan nama tipe |
+| `masuk_nama` | `TINYINT(1)` | Apakah nilai atribut digabungkan ke nama tipe otomatis |
+
+Untuk `tipe_isian = 'pilihan'`, opsi nilai disimpan di `atribut_opsi`:
+- `id`: Primary key opsi
+- `atribut_id`: Foreign key ke `atribut(id)`
+- `nilai`: Nilai opsi (misal: `1A`, `2A`, `3A`, `Jack 5.5mm`, `5G`)
+- `urutan`: Urutan sorting opsi
+
+#### 3. Tabel `produk` (Induk di Katalog)
+Menyimpan produk payung (misal: Adaptor 12V, Kabel UTP Cat6, MikroTik RB750Gr3).
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `id` | `INT UNSIGNED AUTO_INCREMENT` | Primary Key unik produk |
+| `jenis_id` | `INT UNSIGNED` | Foreign Key ke `jenis(id)` |
+| `nama` | `VARCHAR(120)` | Nama produk (unik per jenis) |
+| `kategori` | `VARCHAR(32)` | Kategori perputaran: `'fast_moving'` atau `'recycle'` |
+| `catatan` | `TEXT NULL` | Keterangan produk |
+| `aktif` | `TINYINT(1)` | Status aktif |
+| `dibuat_oleh` | `VARCHAR(36) NULL` | User pembuat produk |
+| `dibuat_pada` | `DATETIME` | Waktu dibuat |
+
+#### 4. Tabel `tipe` (Varian Spesifik Produk)
+Varian konkret tempat stok dihitung (misal: `12V / 1A`, `12V / 3A / jack 5.5mm`).
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `id` | `INT UNSIGNED AUTO_INCREMENT` | Primary Key varian tipe |
+| `produk_id` | `INT UNSIGNED` | Foreign Key ke `produk(id)` |
+| `nama_tipe` | `VARCHAR(160)` | Nama varian (dibuat otomatis dari atribut yang `masuk_nama`) |
+| `catatan` | `VARCHAR(255) NULL` | Catatan khusus varian |
+| `sumber_id` | `VARCHAR(32)` | Aturan ID: `'scan_sn'`, `'otomatis'`, `'manual'`, `'tanpa_id'` |
+| `mode_stok` | `VARCHAR(32)` | Mode pencatatan stok: `'per_id'` atau `'jumlah'` |
+| `prefix_id` | `VARCHAR(10) NULL` | Awalan kode otomatis (misal: `ADP12-`) |
+| `pola_id` | `VARCHAR(200) NULL` | Regex validasi ID item fisik (misal: `^SN[0-9]{8}$`) |
+| `id_dikunci` | `TINYINT(1)` | Penguncian aturan ID setelah ada stok masuk (`1` = terkunci) |
+| `aktif` | `TINYINT(1)` | Status aktif |
+
+#### 5. Tabel `tipe_nilai` (Penyimpanan Nilai Atribut Spesifik)
+Menyimpan relasi nilai EAV (Entity-Attribute-Value) per tipe:
+- `tipe_id`: Foreign key ke `tipe(id)`
+- `atribut_id`: Foreign key ke `atribut(id)`
+- `nilai_angka`: Nilai desimal (jika tipe atribut `'angka'`)
+- `opsi_id`: Foreign key ke `atribut_opsi(id)` (jika tipe atribut `'pilihan'`)
+- `nilai_teks`: Nilai teks bebas (jika tipe atribut `'teks'`)
+
+---
+
+### F. Skema Box, Item Fisik & Stok Jumlah v2 (`06_v2_stock_schema.sql`)
+
+Struktur penyimpanan fisik berbasis Box campuran, pemindaian ID item unik, dan stok jumlah bulk.
+
+#### 1. Tabel `box` (Storage Box Penyimpanan)
+Menyimpan lokasi storage box di gudang kantor (dapat berisi produk campuran).
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `id` | `VARCHAR(36)` | Primary Key unik box |
+| `kode` | `VARCHAR(32)` | Kode box unik (misal: `BOX-A-01`, `BIN-22`) |
+| `keterangan` | `VARCHAR(255) NULL` | Keterangan posisi rak / lokasi fisik |
+| `aktif` | `TINYINT(1)` | Status aktif |
+| `dibuat_pada` | `DATETIME` | Waktu pembuatan box |
+
+#### 2. Tabel `item` (Barang Fisik Ber-ID Unik)
+Menyimpan fisik unit barang yang memiliki ID unik (Serial Number, Otomatis, atau Manual).
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `id` | `VARCHAR(36)` | Primary Key unik unit item |
+| `kode_id` | `VARCHAR(120)` | ID/SN item fisik (Unik di seluruh sistem) |
+| `tipe_id` | `INT UNSIGNED` | Foreign Key ke `tipe(id)` |
+| `box_id` | `VARCHAR(36)` | Foreign Key ke `box(id)` |
+| `status` | `VARCHAR(32)` | Status unit: `'aktif'` atau `'keluar'` |
+| `dibuat_pada` | `DATETIME` | Waktu pendaftaran stok |
+
+#### 3. Tabel `stok_jumlah` (Stok Non-SN Mode Jumlah)
+Menyimpan jumlah stok untuk tipe dengan mode `tanpa_id` per box.
+
+| Nama Kolom | Tipe Data | Deskripsi |
+| :--- | :--- | :--- |
+| `tipe_id` | `INT UNSIGNED` | Composite Primary Key `tipe(id)` |
+| `box_id` | `VARCHAR(36)` | Composite Primary Key `box(id)` |
+| `jumlah` | `INT UNSIGNED` | Jumlah unit stok fisik tersedia |
 
 ---
 

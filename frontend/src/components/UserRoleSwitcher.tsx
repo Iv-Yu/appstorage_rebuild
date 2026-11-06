@@ -24,7 +24,8 @@ import {
   Trash2,
   Code2,
   Clock,
-  Ban
+  Ban,
+  KeyRound
 } from 'lucide-react';
 
 interface UserRoleSwitcherProps {
@@ -135,6 +136,22 @@ export const UserRoleSwitcher: React.FC<UserRoleSwitcherProps> = ({
       }
     } catch (err: any) {
       setActionNotice({ type: 'error', text: err.message || 'Gagal menghapus akun.' });
+    }
+    setTimeout(() => setActionNotice(null), 4000);
+  };
+
+  const handleAdminResetPassword = async (userId: string, username: string) => {
+    const pass = window.prompt(`Masukkan Kata Sandi Baru untuk akun "@${username}":`);
+    if (!pass || pass.trim().length === 0) return;
+    try {
+      const res = await api.adminResetPassword(userId, pass.trim());
+      if (res.success) {
+        setActionNotice({ type: 'success', text: `Kata sandi akun "@${username}" berhasil direset.` });
+      } else {
+        setActionNotice({ type: 'error', text: res.message || 'Gagal mereset kata sandi.' });
+      }
+    } catch (err: any) {
+      setActionNotice({ type: 'error', text: err.message || 'Gagal mereset kata sandi.' });
     }
     setTimeout(() => setActionNotice(null), 4000);
   };
@@ -251,8 +268,8 @@ export const UserRoleSwitcher: React.FC<UserRoleSwitcherProps> = ({
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-900/60">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-slate-700 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center p-0.5 shadow-sm overflow-hidden shrink-0">
+              <img src="/assets/logo-icon.webp" alt="FieldOps IT Logo" className="w-full h-full object-contain rounded-lg" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -653,6 +670,16 @@ export const UserRoleSwitcher: React.FC<UserRoleSwitcherProps> = ({
                               {u.status === 'ACTIVE' ? 'Nonaktifkan' : 'Aktifkan'}
                             </button>
                           )}
+
+                          {/* Reset Password Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleAdminResetPassword(u.id, u.username)}
+                            className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/50 rounded-lg transition-colors cursor-pointer"
+                            title="Reset Kata Sandi"
+                          >
+                            <KeyRound className="w-3.5 h-3.5" />
+                          </button>
 
                           {!isSelf && (
                             <button

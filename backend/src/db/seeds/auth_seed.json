@@ -10,7 +10,7 @@
     "password_hash": "4a5af6f928233286ff52082bf48f1fd19f4f50ffabe3f4db05cc2b0581bbf32a",
     "salt": "salt_dev_001",
     "status": "ACTIVE",
-    "created_at": "2026-11-05T03:49:33.842Z"
+    "created_at": "2026-11-06T03:37:55.047Z"
   },
   {
     "id": "usr-admin-01",
@@ -23,7 +23,7 @@
     "password_hash": "5b33a6f24f21e02c31d7c118df482f273e19bb14d6d9510409e197a3a9fe3b3d",
     "salt": "salt_master_001",
     "status": "ACTIVE",
-    "created_at": "2026-11-05T03:49:33.843Z"
+    "created_at": "2026-11-06T03:37:55.047Z"
   },
   {
     "id": "usr-wh-01",
@@ -33,10 +33,10 @@
     "role": "warehouse_admin",
     "department": "IT Asset & Warehouse Operations",
     "phone": "0811-9876-5432",
-    "password_hash": "994d8ce2997cdbcc8ffe02a412795b2dfa2275f9fa8507e1cec65485218924f7",
-    "salt": "salt_spv_001",
+    "password_hash": "13b8afcff2144c70abd6fd6ca006db240fa7e626eaf47fc27de7279a1f096c62",
+    "salt": "salt_gudang_001",
     "status": "ACTIVE",
-    "created_at": "2026-11-05T03:49:33.844Z"
+    "created_at": "2026-11-06T03:37:55.047Z"
   },
   {
     "id": "usr-tech-01",
@@ -46,9 +46,36 @@
     "role": "technician",
     "department": "Field Operations & Hardware Support",
     "phone": "0812-3456-7890",
-    "password_hash": "ef4755e433afc1f2ebb65e6b352b3673460a9297f9c3dbd2376a08c781992cda",
+    "password_hash": "c38362670918f0ca205fab85bed40ea45e41b251e0bd50ab803c6d2dcf599f92",
     "salt": "salt_tech_001",
     "status": "ACTIVE",
-    "created_at": "2026-11-05T03:49:33.844Z"
+    "created_at": "2026-11-06T03:37:55.047Z",
+    "updated_at": "2026-11-06T03:38:25.901Z"
+  },
+  {
+    "id": "usr-1793936019192",
+    "username": "test_user_01",
+    "name": "Test Approval User",
+    "email": "test_user_01@fieldops.local",
+    "role": "warehouse_admin",
+    "department": "IT Operations",
+    "phone": "",
+    "password_hash": "f7c2adac1bf263488d635f08cf3226497b2d5932b398ec6ca1b0f69c88af0b0a",
+    "salt": "8a715c856c1dd342108e5173a12b53e2",
+    "status": "PENDING_APPROVAL",
+    "created_at": "2026-11-06T03:37:55.047Z"
+  },
+  {
+    "id": "usr-1793936279680",
+    "username": "user_approval_check",
+    "name": "Test Approval User",
+    "email": "user_approval_check@fieldops.local",
+    "role": "warehouse_admin",
+    "department": "IT Operations",
+    "phone": "",
+    "password_hash": "f0a33cdb2dc4f9b2979ac92220ba5dfc1a2b554280d66443d66495c169842673",
+    "salt": "c85fa1073cc973a150fb4c5efe40610e",
+    "status": "PENDING_APPROVAL",
+    "created_at": "2026-11-06T03:37:59.700Z"
   }
 ]

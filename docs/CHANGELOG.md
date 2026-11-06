@@ -6,6 +6,39 @@ Semua perubahan penting dan riwayat rilis proyek **FieldOps IT** dicatat secara 
 
 ---
 
+## 🛡️ [v1.2.0-tahap1] - 2026-11-06 (FieldOps v2 Foundation: Sesi Server, Konfirmasi Bertingkat, ID Mutasi & Sampah 14 Hari)
+
+### 🔑 Sesi Server-Authoritative & Rotasi Token (SECURITY_GUIDE.md Bagian 1)
+- **Tabel `sesi` Server-Authoritative**: Token sesi disimpan dan divalidasi langsung di sisi server dengan cookie HttpOnly (`fieldops_access`, `fieldops_refresh`, `fieldops_device`).
+- **Access Token 900 Detik & Rotasi Refresh Token**: Access token berumur pendek (15 menit) dengan refresh token yang dirotasi otomatis di setiap pemakaian (`POST /api/auth/refresh`).
+- **Deteksi Anti-Replay & Token Copying**: Upaya pemakaian ulang refresh token lama yang sudah dirotasi akan otomatis mencabut seluruh sesi pengguna demi keamanan.
+- **Device ID Hash & Kuota Sesi Tunggal**: Cookie `fieldops_device` terpisah untuk validasi perangkat dan penegakan batas 1 sesi aktif per akun (`MAX_SESI_PER_AKUN`), di mana login baru otomatis mencabut sesi lama.
+- **Batas Kedaluwarsa Idle (30 Menit) & Mutlak (12 Jam)**: Sesi otomatis dinonaktifkan jika tidak ada aktivitas selama 30 menit atau melampaui batas 12 jam.
+
+### 🛡️ Penegakan Konfirmasi Sensitif Bertingkat (Tingkat 0 s/d 3)
+- **Konfirmasi Server-Enforced**: Menerapkan token konfirmasi sekali pakai (`token_konfirmasi`, TTL 120 detik) via endpoint `POST /api/auth/confirm-token`.
+- **Tingkat 2**: Wajib mengetik kata `"approve"` (persetujuan request, mutasi massal).
+- **Tingkat 3**: Wajib mengetik nama objek persis + kata sandi ulang jika login > 15 menit (hapus permanen, ubah role, koreksi ID, hapus produk/tipe/box).
+- **Middleware `requireConfirmation`**: Endpoint aksi sensitif menolak permintaan tanpa token konfirmasi sah dari server.
+
+### 📋 Log Transaksi & Mutasi Format `AKT-YYYYMMDD-NNNN`
+- **Tabel `transaksi` & `transaksi_detail`**: Format ID Aktivitas unik `AKT-YYYYMMDD-NNNN` dengan nomor urut harian otomatis.
+- **Prinsip Append-Only**: Log mutasi tidak dapat diubah atau dihapus lewat antarmuka aplikasi. Menyimpan `nama_snapshot` agar riwayat tetap valid walau master data berubah.
+
+### 🗑️ Tempat Sampah Hapus Permanen (Retensi 14 Hari) & CLI Pemulihan
+- **Tabel `sampah_hapus`**: Snapshot JSON objek asli beserta data turunannya disimpan selama 14 hari (`RETENSI_SAMPAH_HARI`) sebelum pemusnahan total.
+- **Perintah CLI Terminal `npm run sampah`**:
+  - `npm run sampah -- --list`: Menampilkan daftar entri di tempat sampah beserta sisa hari retensi.
+  - `npm run sampah -- --pulihkan <id> --dry-run`: Uji coba pemulihan tanpa mengubah data.
+  - `npm run sampah -- --pulihkan <id>`: Eksekusi pemulihan utuh dengan pemeriksaan konflik dan pencatatan audit log oleh pelaku `terminal`.
+  - `npm run sampah -- --purge`: Pembersihan otomatis entri sampah yang melewati masa 14 hari.
+
+### ⚙️ Konfigurasi Dinamis Bebas Hardcode (`pengaturan`)
+- **Tabel `pengaturan` & `SettingService`**: Parameter sistem (`ACCESS_TOKEN_TTL_DETIK`, `IDLE_TIMEOUT_MENIT`, `ABSOLUTE_TIMEOUT_JAM`, `MAX_SESI_PER_AKUN`, `REAUTH_MENIT`, `RETENSI_SAMPAH_HARI`, `CONFIRMATION_TIERS`) dimuat secara dinamis dari database/environment.
+- **Endpoint Manajemen Pengaturan**: `GET /api/auth/settings` dan `PUT /api/auth/settings/:key` untuk Developer & Admin.
+
+---
+
 ## 🌟 [v1.1.0] - 2026-11-05 (Soft Delete Recycle Bin, Production Auth & Demo Removal)
 
 ### 🗑️ Modul Antarmuka Kotak Sampah (Soft Delete Recycle Bin & Restore)

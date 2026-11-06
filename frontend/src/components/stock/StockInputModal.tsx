@@ -1,0 +1,576 @@
+/**
+ * Stock Input Modal (FieldOps Inventory v2 - Tahap 3)
+ * Pemindaian Kamera Barcode/QR, Scan Beruntun, & Input Massal N-Unit
+ */
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Camera,
+  QrCode,
+  X,
+  Plus,
+  CheckCircle2,
+  AlertCircle,
+  Hash,
+  Box as BoxIcon,
+  Tag,
+  RefreshCw,
+  Layers,
+  Sparkles,
+  Trash2
+} from 'lucide-react';
+import { stockApi, Box } from '../../services/stockApi';
+import { catalogApi, Produk, Tipe } from '../../services/catalogApi';
+import { useInventory } from '../../context/InventoryContext';
+
+interface StockInputModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+export const StockInputModal: React.FC<StockInputModalProps> = ({
+  isOpen,
+  onClose,
+  onSuccess
+}) => {
+  const { showToast } = useInventory();
+
+  // Selection states
+  const [products, setProducts] = useState<Produk[]>([]);
+  const [boxes, setBoxes] = useState<Box[]>([]);
+  const [loadingInitial, setLoadingInitial] = useState<boolean>(true);
+
+  const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
+  const [selectedTipeId, setSelectedTipeId] = useState<number | ''>('');
+  const [selectedBoxId, setSelectedBoxId] = useState<string>('');
+
+  const [currentTipe, setCurrentTipe] = useState<Tipe | null>(null);
+
+  // Input Mode: 'single_scan' | 'bulk_auto' | 'quantity'
+  const [inputMode, setInputMode] = useState<'single_scan' | 'bulk_auto' | 'quantity'>('single_scan');
+
+  // Input states
+  const [singleKodeInput, setSingleKodeInput] = useState<string>('');
+  const [scannedList, setScannedList] = useState<string[]>([]);
+  const [autoCountInput, setAutoCountInput] = useState<number>(10);
+  const [quantityInput, setQuantityInput] = useState<number>(10);
+  const [catatanInput, setCatatanInput] = useState<string>('');
+
+  // Camera State
+  const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Memuat data produk & box
+  const loadInitialData = useCallback(async () => {
+    try {
+      setLoadingInitial(true);
+      const [prods, bList] = await Promise.all([
+        catalogApi.listProduk(),
+        stockApi.listBoxes()
+      ]);
+      setProducts(prods);
+      setBoxes(bList);
+      if (prods.length > 0) setSelectedProductId(prods[0].id);
+      if (bList.length > 0) setSelectedBoxId(bList[0].id);
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setLoadingInitial(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadInitialData();
+    }
+  }, [isOpen, loadInitialData]);
+
+  // Memuat tipe saat produk berubah
+  useEffect(() => {
+    if (selectedProductId) {
+      catalogApi.listTipeByProduk(Number(selectedProductId)).then(tipes => {
+        setProducts(prev => prev.map(p => p.id === Number(selectedProductId) ? { ...p, tipes } : p));
+        if (tipes.length > 0) {
+          setSelectedTipeId(tipes[0].id);
+          setCurrentTipe(tipes[0]);
+          // Adjust inputMode based on sumber_id
+          if (tipes[0].sumber_id === 'tanpa_id') setInputMode('quantity');
+          else if (tipes[0].sumber_id === 'otomatis') setInputMode('bulk_auto');
+          else setInputMode('single_scan');
+        } else {
+          setSelectedTipeId('');
+          setCurrentTipe(null);
+        }
+      });
+    }
+  }, [selectedProductId]);
+
+  // Handle tipe selection change
+  const handleTipeChange = (tipeId: number) => {
+    setSelectedTipeId(tipeId);
+    const p = products.find(prod => prod.id === Number(selectedProductId));
+    const t = p?.tipes?.find(item => item.id === tipeId);
+    if (t) {
+      setCurrentTipe(t);
+      if (t.sumber_id === 'tanpa_id') setInputMode('quantity');
+      else if (t.sumber_id === 'otomatis') setInputMode('bulk_auto');
+      else setInputMode('single_scan');
+    }
+  };
+
+  // Switch camera scanner
+  const startCamera = async () => {
+    try {
+      setIsCameraActive(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (err: any) {
+      showToast('Kamera tidak dapat diakses (membutuhkan koneksi HTTPS / izin kamera).', 'warning');
+      setIsCameraActive(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(t => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  if (!isOpen) return null;
+
+  // Tambah SN ke antrean beruntun
+  const handleAddSingleSN = async () => {
+    const clean = singleKodeInput.trim();
+    if (!clean) return;
+
+    if (scannedList.includes(clean)) {
+      showToast(`ID [${clean}] sudah ada di antrean scan saat ini.`, 'warning');
+      return;
+    }
+
+    // Cek duplikasi di database
+    try {
+      const dupCheck = await stockApi.checkDuplicateId(clean);
+      if (dupCheck.exists) {
+        const it = dupCheck.item;
+        showToast(`ID [${clean}] sudah terdaftar pada ${it.nama_produk} (Box ${it.kode_box}).`, 'error');
+        return;
+      }
+
+      // Check Regex if present
+      if (currentTipe?.pola_id) {
+        const regex = new RegExp(currentTipe.pola_id);
+        if (!regex.test(clean)) {
+          showToast(`Format ID tidak cocok dengan pola regex: ${currentTipe.pola_id}`, 'error');
+          return;
+        }
+      }
+
+      setScannedList(prev => [...prev, clean]);
+      setSingleKodeInput('');
+      showToast(`[${clean}] ditambahkan ke antrean scan.`, 'success');
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Submit eksekusi input stok
+  const handleSubmitStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTipeId || !selectedBoxId) {
+      showToast('Lengkapi pilihan Tipe dan Storage Box.', 'warning');
+      return;
+    }
+
+    try {
+      if (inputMode === 'single_scan') {
+        if (scannedList.length === 0 && !singleKodeInput.trim()) {
+          showToast('Masukkan minimal 1 ID / Serial Number.', 'warning');
+          return;
+        }
+
+        const finalSNs = [...scannedList];
+        if (singleKodeInput.trim() && !finalSNs.includes(singleKodeInput.trim())) {
+          finalSNs.push(singleKodeInput.trim());
+        }
+
+        if (finalSNs.length === 1) {
+          const res = await stockApi.inputSingleStock({
+            tipe_id: Number(selectedTipeId),
+            box_id: selectedBoxId,
+            kode_id: finalSNs[0],
+            catatan: catatanInput.trim() || undefined
+          });
+          showToast(res.message, 'success');
+        } else {
+          const res = await stockApi.inputBulkStock({
+            tipe_id: Number(selectedTipeId),
+            box_id: selectedBoxId,
+            kode_ids: finalSNs,
+            catatan: catatanInput.trim() || undefined
+          });
+          showToast(res.message, 'success');
+        }
+      } else if (inputMode === 'bulk_auto') {
+        if (autoCountInput <= 0) {
+          showToast('Jumlah N unit harus lebih besar dari 0.', 'warning');
+          return;
+        }
+
+        const res = await stockApi.inputBulkStock({
+          tipe_id: Number(selectedTipeId),
+          box_id: selectedBoxId,
+          auto_count: autoCountInput,
+          catatan: catatanInput.trim() || undefined
+        });
+        showToast(res.message, 'success');
+      } else if (inputMode === 'quantity') {
+        if (quantityInput <= 0) {
+          showToast('Jumlah unit harus lebih besar dari 0.', 'warning');
+          return;
+        }
+
+        const res = await stockApi.inputQuantityStock({
+          tipe_id: Number(selectedTipeId),
+          box_id: selectedBoxId,
+          jumlah: quantityInput,
+          catatan: catatanInput.trim() || undefined
+        });
+        showToast(res.message, 'success');
+      }
+
+      stopCamera();
+      onClose();
+      if (onSuccess) onSuccess();
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-xl w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto transition-colors">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-lg">
+              <QrCode className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                Input Stok Fisik (Scan Kamera / Massal)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Setiap 1 batch input mempublikasikan 1 ID Aktivitas transaksi (AKT-YYYYMMDD-NNNN)
+              </p>
+            </div>
+          </div>
+
+          <button onClick={() => { stopCamera(); onClose(); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {loadingInitial ? (
+          <div className="p-8 text-center text-slate-500 text-xs">
+            <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-500" />
+            <span>Memuat data produk & storage box...</span>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmitStock} className="space-y-4 text-xs">
+            {/* Selection Grid: Produk, Tipe, Box */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  1. Pilih Produk *
+                </label>
+                <select
+                  value={selectedProductId}
+                  onChange={e => setSelectedProductId(Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-medium"
+                >
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.nama}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  2. Pilih Varian Tipe *
+                </label>
+                <select
+                  value={selectedTipeId}
+                  onChange={e => handleTipeChange(Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-bold"
+                >
+                  {(() => {
+                    const prod = products.find(p => p.id === Number(selectedProductId));
+                    return prod?.tipes?.map(t => (
+                      <option key={t.id} value={t.id}>{t.nama_tipe}</option>
+                    ));
+                  })()}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  3. Storage Box Tujuan *
+                </label>
+                <select
+                  value={selectedBoxId}
+                  onChange={e => setSelectedBoxId(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono font-bold"
+                >
+                  {boxes.map(b => (
+                    <option key={b.id} value={b.id}>{b.kode}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Banner Aturan ID Tipe yang Dipilih */}
+            {currentTipe && (
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                    Aturan ID Tipe: <code className="text-emerald-600 dark:text-emerald-400">{currentTipe.sumber_id}</code>
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Mode Stok: {currentTipe.mode_stok === 'per_id' ? 'Item Ber-ID Fisik' : 'Stok Jumlah (Bulk)'}
+                    {currentTipe.pola_id ? ` · Pola Regex: ${currentTipe.pola_id}` : ''}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('single_scan')}
+                    disabled={currentTipe.sumber_id === 'tanpa_id'}
+                    className={`px-2 py-1 rounded text-[10px] font-bold ${
+                      inputMode === 'single_scan'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Scan Beruntun
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('bulk_auto')}
+                    disabled={currentTipe.sumber_id !== 'otomatis'}
+                    className={`px-2 py-1 rounded text-[10px] font-bold ${
+                      inputMode === 'bulk_auto'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Auto N-Unit
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('quantity')}
+                    disabled={currentTipe.sumber_id !== 'tanpa_id'}
+                    className={`px-2 py-1 rounded text-[10px] font-bold ${
+                      inputMode === 'quantity'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Stok Jumlah
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Mode 1: Scan Beruntun / Single SN */}
+            {inputMode === 'single_scan' && (
+              <div className="space-y-3">
+                {/* Camera Scanner View */}
+                <div className="p-3 bg-slate-900 text-white rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold flex items-center gap-1.5 text-xs text-emerald-400">
+                      <Camera className="w-4 h-4" /> Pemindai Barcode / QR Kamera Browser
+                    </span>
+                    {!isCameraActive ? (
+                      <button
+                        type="button"
+                        onClick={startCamera}
+                        className="px-2.5 py-1 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded"
+                      >
+                        Aktifkan Kamera
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={stopCamera}
+                        className="px-2.5 py-1 text-[10px] font-bold bg-red-600 hover:bg-red-500 text-white rounded"
+                      >
+                        Matikan Kamera
+                      </button>
+                    )}
+                  </div>
+
+                  {isCameraActive && (
+                    <div className="relative aspect-video bg-black rounded overflow-hidden border border-slate-700">
+                      <video ref={videoRef} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 border-2 border-emerald-500/50 m-8 rounded pointer-events-none animate-pulse" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Input Ketik Manual / Scanner Keypad */}
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Ketik ID / Serial Number (Tekan Enter atau klik + Tambah untuk scan beruntun)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Masukkan SN atau scan barcode..."
+                      value={singleKodeInput}
+                      onChange={e => setSingleKodeInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSingleSN();
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddSingleSN}
+                      className="px-3.5 py-2 font-bold text-white bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 rounded-lg flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Tambah</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* List Antrean Scan Beruntun */}
+                {scannedList.length > 0 && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 dark:text-slate-200">
+                        Antrean Scan Beruntun ({scannedList.length} unit):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setScannedList([])}
+                        className="text-red-500 hover:underline text-[10px]"
+                      >
+                        Kosongkan Antrean
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
+                      {scannedList.map((sn, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-[11px] font-bold text-slate-800 dark:text-slate-200"
+                        >
+                          {sn}
+                          <button
+                            type="button"
+                            onClick={() => setScannedList(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-slate-400 hover:text-red-500"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Mode 2: Bulk Auto N Units */}
+            {inputMode === 'bulk_auto' && (
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+                <label className="block font-bold text-slate-800 dark:text-slate-200">
+                  Jumlah Unit Otomatis Dihasilkan (N Unit)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={autoCountInput}
+                  onChange={e => setAutoCountInput(Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono font-bold"
+                />
+                <span className="text-[11px] text-slate-500 block">
+                  Sistem akan membuat {autoCountInput} ID item fisik dengan format prefix "{currentTipe?.prefix_id || 'ITEM-'}" dalam 1 transaksi.
+                </span>
+              </div>
+            )}
+
+            {/* Mode 3: Quantity Non-SN */}
+            {inputMode === 'quantity' && (
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+                <label className="block font-bold text-slate-800 dark:text-slate-200">
+                  Jumlah Unit Masuk (Stok Jumlah)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={quantityInput}
+                  onChange={e => setQuantityInput(Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono font-bold"
+                />
+              </div>
+            )}
+
+            {/* Catatan Transaksi */}
+            <div>
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Catatan Transaksi / Nomor Surat Jalan PO (Opsional)
+              </label>
+              <input
+                type="text"
+                placeholder="Misal: Penerimaan PO-2026-11-002 dari Suplier Utama"
+                value={catatanInput}
+                onChange={e => setCatatanInput(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => { stopCamera(); onClose(); }}
+                className="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 font-bold text-white bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 rounded-lg shadow-xs"
+              >
+                Eksekusi Input Stok
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};

@@ -28,11 +28,26 @@
 
 ---
 
+## 🚀 Road Map v1.2.0 (FieldOps Inventory v2)
+
+| Tahap | Deskripsi Cakupan Modul | Status | Pengujian Otomatis | Catatan Kunci |
+| :--- | :--- | :--- | :--- | :--- |
+| **Tahap 0** | Prasyarat, Perbaikan Hash Demo & Pemetaan Data | **terverifikasi** | Node.js Auth Suite | Login demo 100% lulus; pemetaan Jenis/Produk/Tipe/Item disetujui |
+| **Tahap 1** | Fondasi Keamanan, Sesi Server, Konfirmasi & Sampah 14H | **terverifikasi** | `tahap1Foundation.test.ts` (19/19 Lulus) | Tabel `sesi`, `pengaturan`, `transaksi` (`AKT-`), `sampah_hapus`, CLI `npm run sampah` |
+| **Tahap 2** | CRUD Jenis, Atribut, Produk, dan Tipe | **terverifikasi** | `tahap2Catalog.test.ts` (13/13 Lulus) | Pembentukan nama tipe otomatis (`masuk_nama = 1`), aturan ID (`scan_sn`, `otomatis`, `manual`, `tanpa_id`), tombol tambah atribut inline, penguncian `id_dikunci` |
+| **Tahap 3** | Box, Item Fisik Ber-ID, Stok Jumlah & Input Kamera | **terverifikasi** | `tahap3Stock.test.ts` (17/17 Lulus) | Box campuran, pemindaian kamera barcode/QR, input massal N unit/scan beruntun 1 ID aktivitas, validasi duplikat & regex |
+| **Tahap 4** | Antarmuka Katalog Toko Online & Filter Atribut | **belum** | - | Kartu produk, detail per tipe, daftar ID fisik & sebaran box |
+| **Tahap 5** | Barang Keluar & Arsip Terintegrasi Restore | **belum** | - | Soft delete barang keluar, pencarian arsip, konfirmasi restore |
+| **Tahap 6** | Alur Request Teknisi & Persetujuan Cepat | **belum** | - | 1 approval cukup dari 3 role, pencegahan double approval atomik |
+| **Tahap 7** | Label Batch & Cetak A4 Presisi (`cetak_label.html`) | **belum** | - | Ukuran 190×89mm, slot 1-3, titik potong 195×94mm, SVG QR tajam |
+| **Tahap 8** | Notifikasi Fonnte, Audit Keamanan & Dokumentasi | **belum** | - | WhatsApp auto-alert, dark/light token design, final audit |
+
+---
+
 ## 📈 Log Perubahan Status
-- **Tahap 0 Selesai**: Audit kode lama rampung di `docs/LEGACY_AUDIT.md`.
-- **Tahap 1 Selesai**: Arsitektur MariaDB disetujui pengguna; Cloudflare Tunnel dipilih; pemisahan dua file data (barang vs akun) didokumentasikan di `docs/ARCHITECTURE.md`.
-- **Tahap 2 Selesai**: Fondasi decoupled `backend/` dan `frontend/` terpasang; migrasi skema MariaDB 11 dua file terpisah (`01_auth_schema.sql` dan `02_inventory_schema.sql`); modul autentikasi server-authoritative (`authService.ts` + `authMiddleware.ts` + session cookie); skrip `setupAdmin.ts`; layanan backup terpisah `backupService.ts` yang telah lolos uji `testBackupRestore.ts`; konfigurasi `docker-compose.yml` dan panduan `docs/DEPLOY.md`.
-- **Tahap 3 Selesai**: Pemutusan total Firebase (Auth & Firestore dihapus 100%); seluruh komponen React terhubung ke backend Express API MariaDB; UI dipicu sesi server-authoritative; sanitasi ekspor CSV/Excel dipertahankan; modal & cetak dokumen terintegrasi.
-- **Tahap 4 Selesai**: Konsolidasi penuh WhatsApp / Fonnte ke dalam `backend/src/integrations/whatsapp/` (`provider.ts`, `fonnte.ts`, `templates.ts`) dan `backend/src/routes/whatsapp.ts`. Duplikasi pada `server/whatsapp-gateway.js` dan inline routes dibersihkan.
-- **Tahap 5 Selesai**: Struktur seed & backup terpisah 100% antara akun (`auth_seed.json`) dan data inventaris (`items_seed.json`).
+- **Tahap 0 Selesai**: Diagnosa otentikasi tuntas; hash PBKDF2 diperbaiki untuk `admin`, `developer`, `admin_gudang`, dan `teknisi`.
+- **Tahap 1 Selesai**: Fondasi v2 terpasang (`04_v2_foundation_schema.sql`); sesi server terisolasi dengan rotasi token dan deteksi anti-replay; konfirmasi sensitif bertingkat Tier 0–3 ditegakkan server; log transaksi format `AKT-YYYYMMDD-NNNN`; tempat sampah 14 hari dengan pemulihan CLI `npm run sampah`. Lulus 19/19 pengujian otomatis di `tahap1Foundation.test.ts`.
+- **Tahap 2 Selesai**: Skema katalog bertingkat terpasang (`05_v2_catalog_schema.sql`); REST endpoint & CatalogService (`jenis`, `atribut`, `atribut_opsi`, `produk`, `tipe`, `tipe_nilai`); otomatisasi pembentukan nama varian tipe dari atribut berurutan (`urutan` ASC); aturan ID per tipe (`scan_sn`, `otomatis`, `manual`, `tanpa_id`) dengan pola regex dan penguncian; UI `CatalogV2Manager.tsx` lengkap dengan tombol "+ Tambah Atribut" langsung di modal buat produk dan filter spesifikasi atribut dinamis. Lulus 13/13 pengujian otomatis di `tahap2Catalog.test.ts`.
+- **Tahap 3 Selesai**: Skema stok & box terpasang (`06_v2_stock_schema.sql`); `StockService` & REST endpoint (`/api/boxes`, `/api/stock`); dukungan box campuran; pemindaian kamera barcode/QR; input massal N unit & scan beruntun 20+ unit dipublikasikan dalam **1 transaksi tunggal** dengan ID aktivitas `AKT-YYYYMMDD-NNNN`; validasi duplikasi ID di seluruh sistem; penguncian `id_dikunci = 1` pada tipe; relokasi antar box dengan log `pindah_box`; UI `StockInputModal.tsx`, `BoxManagerModal.tsx`, dan `BoxContentModal.tsx`. Lulus 17/17 pengujian otomatis di `tahap3Stock.test.ts`.
+
 

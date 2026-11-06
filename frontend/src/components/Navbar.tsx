@@ -126,17 +126,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 aria-label="Buka Menu Dropdown Aplikasi"
                 title="Klik untuk membuka Menu Navigasi & Kelompok Fitur"
               >
-                <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-emerald-600 text-white flex items-center justify-center font-extrabold text-sm shadow-sm group-hover:scale-105 transition-transform shrink-0">
-                  FO
-                </div>
-                
-                {/* Always Full Visible App Name (Mobile & PC) */}
-                <div className="flex items-center gap-1.5 text-left">
-                  <span className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 dark:text-white font-display whitespace-nowrap">
-                    FieldOps IT
-                  </span>
-                  <ChevronDown className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 ${appMenuOpen ? 'rotate-180 text-slate-900 dark:text-white' : 'group-hover:text-slate-900 dark:group-hover:text-white'}`} />
-                </div>
+                <img 
+                  src="/assets/logo-full.webp" 
+                  alt="FieldOps IT ASSET & INVENTORY" 
+                  className="h-8 sm:h-9 w-auto object-contain max-w-[200px] sm:max-w-[260px] dark:brightness-110 group-hover:scale-[1.02] transition-transform" 
+                />
+                <ChevronDown className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 ${appMenuOpen ? 'rotate-180 text-slate-900 dark:text-white' : 'group-hover:text-slate-900 dark:group-hover:text-white'}`} />
               </button>
 
               {/* Master Dropdown Menu with Sub-Dropdowns */}

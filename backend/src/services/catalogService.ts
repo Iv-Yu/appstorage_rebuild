@@ -1,0 +1,699 @@
+/**
+ * Catalog Service (Jenis, Atribut, Produk, Tipe)
+ * FieldOps Inventory v2 - Tahap 2: Katalog Bertingkat
+ * Mengelola struktur katalog modular, nama tipe otomatis, dan aturan ID per tipe.
+ */
+
+import { executeQuery, runTransaction } from '../db/database';
+import { ActivityLogService } from './activityLogService';
+import { TrashService } from './trashService';
+
+export interface AtributOpsi {
+  id: number;
+  atribut_id: number;
+  nilai: string;
+  urutan: number;
+}
+
+export interface Atribut {
+  id: number;
+  jenis_id: number;
+  kode: string;
+  nama: string;
+  tipe_isian: 'angka' | 'pilihan' | 'teks';
+  satuan?: string | null;
+  wajib: boolean | number;
+  urutan: number;
+  masuk_nama: boolean | number;
+  opsi?: AtributOpsi[];
+}
+
+export interface Jenis {
+  id: number;
+  nama: string;
+  sumber_id_bawaan: 'scan_sn' | 'otomatis' | 'manual' | 'tanpa_id';
+  prefix_id_bawaan?: string | null;
+  aktif: boolean | number;
+  dibuat_pada: string;
+  atributs?: Atribut[];
+  total_produk?: number;
+}
+
+export interface Produk {
+  id: number;
+  jenis_id: number;
+  jenis_nama?: string;
+  nama: string;
+  kategori: 'fast_moving' | 'recycle';
+  catatan?: string | null;
+  aktif: boolean | number;
+  dibuat_oleh?: string | null;
+  dibuat_pada: string;
+  tipes?: Tipe[];
+  total_tipe?: number;
+}
+
+export interface NilaiAtributInput {
+  atribut_id: number;
+  nilai_angka?: number | null;
+  opsi_id?: number | null;
+  opsi_baru?: string | null;
+  nilai_teks?: string | null;
+}
+
+export interface Tipe {
+  id: number;
+  produk_id: number;
+  produk_nama?: string;
+  jenis_nama?: string;
+  nama_tipe: string;
+  catatan?: string | null;
+  sumber_id: 'scan_sn' | 'otomatis' | 'manual' | 'tanpa_id';
+  mode_stok: 'per_id' | 'jumlah';
+  prefix_id?: string | null;
+  pola_id?: string | null;
+  id_dikunci: boolean | number;
+  aktif: boolean | number;
+  dibuat_pada: string;
+  nilai_atribut?: Array<{
+    atribut_id: number;
+    atribut_nama: string;
+    tipe_isian: string;
+    satuan?: string;
+    nilai_tampil: string;
+    nilai_angka?: number;
+    opsi_id?: number;
+    nilai_teks?: string;
+  }>;
+}
+
+export class CatalogService {
+  // ============================================================================
+  // 1. JENIS
+  // ============================================================================
+
+  static async listJenis(): Promise<Jenis[]> {
+    const list = await executeQuery<any>(
+      `SELECT j.*, COUNT(p.id) as total_produk
+       FROM jenis j
+       LEFT JOIN produk p ON j.id = p.jenis_id AND p.aktif = 1
+       WHERE j.aktif = 1
+       GROUP BY j.id
+       ORDER BY j.nama ASC`
+    );
+
+    for (const j of list) {
+      j.atributs = await this.listAtributByJenis(j.id);
+    }
+
+    return list;
+  }
+
+  static async getJenisById(id: number): Promise<Jenis | null> {
+    const rows = await executeQuery<any>('SELECT * FROM jenis WHERE id = ?', [id]);
+    if (!rows || rows.length === 0) return null;
+    const j = rows[0];
+    j.atributs = await this.listAtributByJenis(id);
+    return j;
+  }
+
+  static async createJenis(input: {
+    nama: string;
+    sumber_id_bawaan?: 'scan_sn' | 'otomatis' | 'manual' | 'tanpa_id';
+    prefix_id_bawaan?: string;
+    atributs?: Array<{
+      kode: string;
+      nama: string;
+      tipe_isian: 'angka' | 'pilihan' | 'teks';
+      satuan?: string;
+      wajib?: boolean;
+      urutan?: number;
+      masuk_nama?: boolean;
+      opsi?: string[];
+    }>;
+  }, userId: string): Promise<Jenis> {
+    const cleanNama = input.nama.trim();
+    const sumberId = input.sumber_id_bawaan || 'manual';
+    const prefixId = input.prefix_id_bawaan ? input.prefix_id_bawaan.trim() : null;
+
+    return await runTransaction(async (conn) => {
+      const res = await conn.query(
+        `INSERT INTO jenis (nama, sumber_id_bawaan, prefix_id_bawaan, aktif)
+         VALUES (?, ?, ?, 1)`,
+        [cleanNama, sumberId, prefixId]
+      );
+
+      const jenisId = res.insertId || res.id;
+
+      if (input.atributs && input.atributs.length > 0) {
+        for (let i = 0; i < input.atributs.length; i++) {
+          const a = input.atributs[i];
+          const aRes = await conn.query(
+            `INSERT INTO atribut (jenis_id, kode, nama, tipe_isian, satuan, wajib, urutan, masuk_nama)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              jenisId,
+              a.kode.trim().toLowerCase(),
+              a.nama.trim(),
+              a.tipe_isian,
+              a.satuan ? a.satuan.trim() : null,
+              a.wajib !== false ? 1 : 0,
+              typeof a.urutan === 'number' ? a.urutan : i,
+              a.masuk_nama !== false ? 1 : 0
+            ]
+          );
+
+          const atributId = aRes.insertId || aRes.id;
+          if (a.tipe_isian === 'pilihan' && a.opsi && a.opsi.length > 0) {
+            for (let j = 0; j < a.opsi.length; j++) {
+              await conn.query(
+                `INSERT INTO atribut_opsi (atribut_id, nilai, urutan) VALUES (?, ?, ?)`,
+                [atributId, a.opsi[j].trim(), j]
+              );
+            }
+          }
+        }
+      }
+
+      await ActivityLogService.recordActivity({
+        aksi: 'tambah_jenis',
+        pelaku_id: userId,
+        catatan: `Menambahkan Jenis baru: ${cleanNama}`
+      });
+
+      const created = await this.getJenisById(jenisId);
+      return created!;
+    });
+  }
+
+  static async updateJenis(id: number, input: {
+    nama: string;
+    sumber_id_bawaan?: 'scan_sn' | 'otomatis' | 'manual' | 'tanpa_id';
+    prefix_id_bawaan?: string;
+  }, userId: string): Promise<Jenis> {
+    const cleanNama = input.nama.trim();
+    await executeQuery(
+      `UPDATE jenis SET nama = ?, sumber_id_bawaan = ?, prefix_id_bawaan = ? WHERE id = ?`,
+      [cleanNama, input.sumber_id_bawaan || 'manual', input.prefix_id_bawaan || null, id]
+    );
+
+    await ActivityLogService.recordActivity({
+      aksi: 'ubah_jenis',
+      pelaku_id: userId,
+      catatan: `Mengubah data Jenis #${id} (${cleanNama})`
+    });
+
+    const updated = await this.getJenisById(id);
+    return updated!;
+  }
+
+  static async deleteJenis(id: number, userId: string): Promise<{ success: boolean; message: string }> {
+    const existing = await this.getJenisById(id);
+    if (!existing) {
+      return { success: false, message: 'Jenis tidak ditemukan.' };
+    }
+
+    // Blokir jika masih punya produk aktif
+    const prods = await executeQuery<any>('SELECT id FROM produk WHERE jenis_id = ? AND aktif = 1', [id]);
+    if (prods && prods.length > 0) {
+      return {
+        success: false,
+        message: `Tidak dapat menghapus Jenis "${existing.nama}" karena masih memiliki ${prods.length} produk aktif di dalamnya.`
+      };
+    }
+
+    // Pindahkan ke sampah hapus permanen 14 hari
+    await TrashService.moveToTrash({
+      jenis_objek: 'jenis',
+      objek_id: String(id),
+      snapshot: existing,
+      dihapus_oleh: userId,
+      catatan: `Hapus permanen Jenis "${existing.nama}"`
+    });
+
+    await executeQuery('UPDATE jenis SET aktif = 0 WHERE id = ?', [id]);
+    return { success: true, message: `Jenis "${existing.nama}" berhasil dihapus (disimpan di tempat sampah 14 hari).` };
+  }
+
+  // ============================================================================
+  // 2. ATRIBUT & OPSI
+  // ============================================================================
+
+  static async listAtributByJenis(jenisId: number): Promise<Atribut[]> {
+    const atributs = await executeQuery<any>(
+      `SELECT * FROM atribut WHERE jenis_id = ? ORDER BY urutan ASC, id ASC`,
+      [jenisId]
+    );
+
+    for (const a of atributs) {
+      if (a.tipe_isian === 'pilihan') {
+        a.opsi = await executeQuery<any>(
+          `SELECT * FROM atribut_opsi WHERE atribut_id = ? ORDER BY urutan ASC, id ASC`,
+          [a.id]
+        );
+      } else {
+        a.opsi = [];
+      }
+    }
+
+    return atributs;
+  }
+
+  static async createAtribut(input: {
+    jenis_id: number;
+    kode: string;
+    nama: string;
+    tipe_isian: 'angka' | 'pilihan' | 'teks';
+    satuan?: string;
+    wajib?: boolean;
+    urutan?: number;
+    masuk_nama?: boolean;
+    opsi?: string[];
+  }): Promise<Atribut> {
+    const kode = input.kode.trim().toLowerCase();
+    const nama = input.nama.trim();
+
+    return await runTransaction(async (conn) => {
+      const res = await conn.query(
+        `INSERT INTO atribut (jenis_id, kode, nama, tipe_isian, satuan, wajib, urutan, masuk_nama)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          input.jenis_id,
+          kode,
+          nama,
+          input.tipe_isian,
+          input.satuan ? input.satuan.trim() : null,
+          input.wajib !== false ? 1 : 0,
+          typeof input.urutan === 'number' ? input.urutan : 0,
+          input.masuk_nama !== false ? 1 : 0
+        ]
+      );
+
+      const atributId = res.insertId || res.id;
+      const opsiList: AtributOpsi[] = [];
+
+      if (input.tipe_isian === 'pilihan' && input.opsi && input.opsi.length > 0) {
+        for (let i = 0; i < input.opsi.length; i++) {
+          const val = input.opsi[i].trim();
+          if (val) {
+            const oRes = await conn.query(
+              `INSERT INTO atribut_opsi (atribut_id, nilai, urutan) VALUES (?, ?, ?)`,
+              [atributId, val, i]
+            );
+            opsiList.push({ id: oRes.insertId || oRes.id, atribut_id: atributId, nilai: val, urutan: i });
+          }
+        }
+      }
+
+      return {
+        id: atributId,
+        jenis_id: input.jenis_id,
+        kode,
+        nama,
+        tipe_isian: input.tipe_isian,
+        satuan: input.satuan || null,
+        wajib: input.wajib !== false,
+        urutan: input.urutan || 0,
+        masuk_nama: input.masuk_nama !== false,
+        opsi: opsiList
+      };
+    });
+  }
+
+  static async addAtributOpsi(atributId: number, nilai: string): Promise<AtributOpsi> {
+    const cleanNilai = nilai.trim();
+    // Cek apakah opsi sudah ada
+    const existing = await executeQuery<any>(
+      'SELECT * FROM atribut_opsi WHERE atribut_id = ? AND LOWER(nilai) = LOWER(?)',
+      [atributId, cleanNilai]
+    );
+
+    if (existing && existing.length > 0) {
+      return existing[0];
+    }
+
+    const res: any = await executeQuery(
+      `INSERT INTO atribut_opsi (atribut_id, nilai, urutan) VALUES (?, ?, 0)`,
+      [atributId, cleanNilai]
+    );
+
+    return {
+      id: res.insertId || res.id,
+      atribut_id: atributId,
+      nilai: cleanNilai,
+      urutan: 0
+    };
+  }
+
+  // ============================================================================
+  // 3. PRODUK
+  // ============================================================================
+
+  static async listProduk(filters?: { jenis_id?: number; kategori?: string; search?: string }): Promise<Produk[]> {
+    let sql = `
+      SELECT p.*, j.nama as jenis_nama, COUNT(t.id) as total_tipe
+      FROM produk p
+      JOIN jenis j ON p.jenis_id = j.id
+      LEFT JOIN tipe t ON p.id = t.produk_id AND t.aktif = 1
+      WHERE p.aktif = 1
+    `;
+    const params: any[] = [];
+
+    if (filters?.jenis_id) {
+      sql += ' AND p.jenis_id = ?';
+      params.push(filters.jenis_id);
+    }
+
+    if (filters?.kategori) {
+      sql += ' AND p.kategori = ?';
+      params.push(filters.kategori);
+    }
+
+    if (filters?.search) {
+      sql += ' AND (LOWER(p.nama) LIKE ? OR LOWER(j.nama) LIKE ?)';
+      params.push(`%${filters.search.toLowerCase()}%`, `%${filters.search.toLowerCase()}%`);
+    }
+
+    sql += ' GROUP BY p.id ORDER BY p.nama ASC';
+
+    const prods = await executeQuery<any>(sql, params);
+    return prods;
+  }
+
+  static async getProdukById(id: number): Promise<Produk | null> {
+    const rows = await executeQuery<any>(
+      `SELECT p.*, j.nama as jenis_nama
+       FROM produk p
+       JOIN jenis j ON p.jenis_id = j.id
+       WHERE p.id = ?`,
+      [id]
+    );
+
+    if (!rows || rows.length === 0) return null;
+    const prod = rows[0];
+    prod.tipes = await this.listTipeByProduk(id);
+    return prod;
+  }
+
+  static async createProduk(input: {
+    jenis_id: number;
+    nama: string;
+    kategori: 'fast_moving' | 'recycle';
+    catatan?: string;
+  }, userId: string): Promise<Produk> {
+    const cleanNama = input.nama.trim();
+
+    const res: any = await executeQuery(
+      `INSERT INTO produk (jenis_id, nama, kategori, catatan, aktif, dibuat_oleh)
+       VALUES (?, ?, ?, ?, 1, ?)`,
+      [input.jenis_id, cleanNama, input.kategori, input.catatan || null, userId]
+    );
+
+    const prodId = res.insertId || res.id;
+
+    await ActivityLogService.recordActivity({
+      aksi: 'tambah_produk',
+      pelaku_id: userId,
+      catatan: `Menambahkan Produk baru: "${cleanNama}" (Kategori: ${input.kategori})`
+    });
+
+    const created = await this.getProdukById(prodId);
+    return created!;
+  }
+
+  static async updateProduk(id: number, input: {
+    nama: string;
+    kategori: 'fast_moving' | 'recycle';
+    catatan?: string;
+  }, userId: string): Promise<Produk> {
+    const cleanNama = input.nama.trim();
+
+    await executeQuery(
+      `UPDATE produk SET nama = ?, kategori = ?, catatan = ? WHERE id = ?`,
+      [cleanNama, input.kategori, input.catatan || null, id]
+    );
+
+    await ActivityLogService.recordActivity({
+      aksi: 'ubah_produk',
+      pelaku_id: userId,
+      catatan: `Memperbarui Produk #${id} ("${cleanNama}")`
+    });
+
+    const updated = await this.getProdukById(id);
+    return updated!;
+  }
+
+  static async deleteProduk(id: number, userId: string): Promise<{ success: boolean; message: string }> {
+    const existing = await this.getProdukById(id);
+    if (!existing) {
+      return { success: false, message: 'Produk tidak ditemukan.' };
+    }
+
+    // Pindahkan ke tempat sampah hapus permanen 14 hari
+    await TrashService.moveToTrash({
+      jenis_objek: 'produk',
+      objek_id: String(id),
+      snapshot: existing,
+      dihapus_oleh: userId,
+      catatan: `Hapus permanen Produk "${existing.nama}"`
+    });
+
+    await executeQuery('UPDATE produk SET aktif = 0 WHERE id = ?', [id]);
+    return { success: true, message: `Produk "${existing.nama}" berhasil dihapus (disimpan di tempat sampah 14 hari).` };
+  }
+
+  // ============================================================================
+  // 4. TIPE (Varian Produk & Otomatisasi Nama Tipe)
+  // ============================================================================
+
+  /**
+   * Membentuk nama tipe otomatis dari nilai-nilai atribut yang masuk_nama = 1
+   */
+  static generateTipeName(atributs: Atribut[], values: NilaiAtributInput[]): string {
+    const nameParts: string[] = [];
+
+    // Urutkan atribut berdasarkan 'urutan' ASC
+    const sortedAtributs = [...atributs].sort((a, b) => a.urutan - b.urutan);
+
+    for (const a of sortedAtributs) {
+      if (!a.masuk_nama) continue;
+
+      const val = values.find(v => v.atribut_id === a.id);
+      if (!val) continue;
+
+      if (a.tipe_isian === 'angka' && typeof val.nilai_angka === 'number') {
+        const satuan = a.satuan ? `${a.satuan}` : '';
+        nameParts.push(`${val.nilai_angka}${satuan}`);
+      } else if (a.tipe_isian === 'pilihan') {
+        if (val.opsi_baru) {
+          nameParts.push(val.opsi_baru.trim());
+        } else if (val.opsi_id && a.opsi) {
+          const matchedOpsi = a.opsi.find(o => o.id === val.opsi_id);
+          if (matchedOpsi) {
+            nameParts.push(matchedOpsi.nilai.trim());
+          }
+        }
+      } else if (a.tipe_isian === 'teks' && val.nilai_teks) {
+        nameParts.push(val.nilai_teks.trim());
+      }
+    }
+
+    return nameParts.length > 0 ? nameParts.join(' / ') : 'Standar';
+  }
+
+  static async listTipeByProduk(produkId: number): Promise<Tipe[]> {
+    const tipes = await executeQuery<any>(
+      `SELECT t.*, p.nama as produk_nama, j.nama as jenis_nama
+       FROM tipe t
+       JOIN produk p ON t.produk_id = p.id
+       JOIN jenis j ON p.jenis_id = j.id
+       WHERE t.produk_id = ? AND t.aktif = 1
+       ORDER BY t.nama_tipe ASC`,
+      [produkId]
+    );
+
+    for (const t of tipes) {
+      t.nilai_atribut = await this.getNilaiAtributTipe(t.id);
+    }
+
+    return tipes;
+  }
+
+  static async getTipeById(id: number): Promise<Tipe | null> {
+    const rows = await executeQuery<any>(
+      `SELECT t.*, p.nama as produk_nama, j.nama as jenis_nama
+       FROM tipe t
+       JOIN produk p ON t.produk_id = p.id
+       JOIN jenis j ON p.jenis_id = j.id
+       WHERE t.id = ?`,
+      [id]
+    );
+
+    if (!rows || rows.length === 0) return null;
+    const t = rows[0];
+    t.nilai_atribut = await this.getNilaiAtributTipe(id);
+    return t;
+  }
+
+  static async getNilaiAtributTipe(tipeId: number) {
+    const rows = await executeQuery<any>(
+      `SELECT tn.*, a.nama as atribut_nama, a.tipe_isian, a.satuan, ao.nilai as opsi_nilai
+       FROM tipe_nilai tn
+       JOIN atribut a ON tn.atribut_id = a.id
+       LEFT JOIN atribut_opsi ao ON tn.opsi_id = ao.id
+       WHERE tn.tipe_id = ?
+       ORDER BY a.urutan ASC`,
+      [tipeId]
+    );
+
+    return rows.map(r => {
+      let nilaiTampil = '';
+      if (r.tipe_isian === 'angka') {
+        nilaiTampil = `${r.nilai_angka}${r.satuan || ''}`;
+      } else if (r.tipe_isian === 'pilihan') {
+        nilaiTampil = r.opsi_nilai || '';
+      } else {
+        nilaiTampil = r.nilai_teks || '';
+      }
+      return {
+        atribut_id: r.atribut_id,
+        atribut_nama: r.atribut_nama,
+        tipe_isian: r.tipe_isian,
+        satuan: r.satuan,
+        nilai_tampil: nilaiTampil,
+        nilai_angka: r.nilai_angka,
+        opsi_id: r.opsi_id,
+        nilai_teks: r.nilai_teks
+      };
+    });
+  }
+
+  static async createTipe(input: {
+    produk_id: number;
+    catatan?: string;
+    sumber_id?: 'scan_sn' | 'otomatis' | 'manual' | 'tanpa_id';
+    prefix_id?: string;
+    pola_id?: string;
+    nilai_atribut: NilaiAtributInput[];
+  }, userId: string): Promise<Tipe> {
+    const prod = await this.getProdukById(input.produk_id);
+    if (!prod) {
+      throw new Error(`Produk #${input.produk_id} tidak ditemukan.`);
+    }
+
+    const atributs = await this.listAtributByJenis(prod.jenis_id);
+
+    // Validasi atribut wajib
+    for (const a of atributs) {
+      if (a.wajib) {
+        const val = input.nilai_atribut.find(v => v.atribut_id === a.id);
+        const hasVal = val && (
+          val.nilai_angka !== undefined || 
+          val.opsi_id !== undefined || 
+          (val.opsi_baru && val.opsi_baru.trim().length > 0) || 
+          (val.nilai_teks && val.nilai_teks.trim().length > 0)
+        );
+        if (!hasVal) {
+          throw new Error(`Atribut wajib "${a.nama}" belum diisi.`);
+        }
+      }
+    }
+
+    // Jika ada opsi_baru, tambahkan ke tabel atribut_opsi dulu
+    for (const v of input.nilai_atribut) {
+      if (v.opsi_baru && v.opsi_baru.trim().length > 0) {
+        const added = await this.addAtributOpsi(v.atribut_id, v.opsi_baru.trim());
+        v.opsi_id = added.id;
+      }
+    }
+
+    // Bentuk nama tipe otomatis
+    const autoName = this.generateTipeName(atributs, input.nilai_atribut);
+
+    // Cek duplikasi nama tipe di produk yang sama
+    const duplicate = await executeQuery<any>(
+      'SELECT id FROM tipe WHERE produk_id = ? AND nama_tipe = ? AND aktif = 1',
+      [input.produk_id, autoName]
+    );
+    if (duplicate && duplicate.length > 0) {
+      throw new Error(`Tipe "${autoName}" sudah terdaftar untuk produk "${prod.nama}".`);
+    }
+
+    // Tentukan sumber_id dan mode_stok
+    const sumberId = input.sumber_id || 'manual';
+    const modeStok = sumberId === 'tanpa_id' ? 'jumlah' : 'per_id';
+
+    return await runTransaction(async (conn) => {
+      const res = await conn.query(
+        `INSERT INTO tipe (produk_id, nama_tipe, catatan, sumber_id, mode_stok, prefix_id, pola_id, id_dikunci, aktif)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1)`,
+        [
+          input.produk_id,
+          autoName,
+          input.catatan || null,
+          sumberId,
+          modeStok,
+          input.prefix_id || null,
+          input.pola_id || null
+        ]
+      );
+
+      const tipeId = res.insertId || res.id;
+
+      // Masukkan baris tipe_nilai
+      for (const v of input.nilai_atribut) {
+        await conn.query(
+          `INSERT INTO tipe_nilai (tipe_id, atribut_id, nilai_angka, opsi_id, nilai_teks)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            tipeId,
+            v.atribut_id,
+            typeof v.nilai_angka === 'number' ? v.nilai_angka : null,
+            v.opsi_id || null,
+            v.nilai_teks || null
+          ]
+        );
+      }
+
+      await ActivityLogService.recordActivity({
+        aksi: 'tambah_tipe',
+        pelaku_id: userId,
+        catatan: `Menambahkan Tipe varian baru "${autoName}" pada produk "${prod.nama}"`
+      });
+
+      const created = await this.getTipeById(tipeId);
+      return created!;
+    });
+  }
+
+  /**
+   * Koreksi Aturan ID Tipe (Koreksi ID jika id_dikunci = 1)
+   */
+  static async updateAturanId(tipeId: number, input: {
+    sumber_id: 'scan_sn' | 'otomatis' | 'manual' | 'tanpa_id';
+    prefix_id?: string;
+    pola_id?: string;
+    alasan: string;
+  }, userId: string): Promise<Tipe> {
+    const existing = await this.getTipeById(tipeId);
+    if (!existing) {
+      throw new Error(`Tipe #${tipeId} tidak ditemukan.`);
+    }
+
+    const modeStok = input.sumber_id === 'tanpa_id' ? 'jumlah' : 'per_id';
+
+    await executeQuery(
+      `UPDATE tipe SET sumber_id = ?, mode_stok = ?, prefix_id = ?, pola_id = ? WHERE id = ?`,
+      [input.sumber_id, modeStok, input.prefix_id || null, input.pola_id || null, tipeId]
+    );
+
+    await ActivityLogService.recordActivity({
+      aksi: 'koreksi_aturan_id',
+      pelaku_id: userId,
+      catatan: `Koreksi Aturan ID pada tipe "${existing.nama_tipe}": ${input.alasan} (Sumber: ${existing.sumber_id} -> ${input.sumber_id})`
+    });
+
+    const updated = await this.getTipeById(tipeId);
+    return updated!;
+  }
+}

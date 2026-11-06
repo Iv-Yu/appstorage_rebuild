@@ -517,7 +517,8 @@ Mohon segera ajukan PO restock ke tim pengadaan gudang.`}
 
         {/* Footer Actions */}
         <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between shrink-0">
-          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+            <img src="/assets/logo-icon.webp" alt="FieldOps IT" className="w-4 h-4 rounded-xs object-contain" />
             FieldOps IT · WhatsApp Notification Proxy Engine
           </span>
           <button

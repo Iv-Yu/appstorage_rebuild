@@ -13,7 +13,8 @@
     "clean": "rm -rf frontend/dist dist",
     "lint": "tsc --noEmit",
     "setup:admin": "tsx backend/src/scripts/setupAdmin.ts",
-    "test:backup": "tsx backend/src/scripts/testBackupRestore.ts"
+    "test:backup": "tsx backend/src/scripts/testBackupRestore.ts",
+    "sampah": "tsx backend/src/scripts/sampahCli.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -6,6 +6,41 @@ Semua perubahan penting dan riwayat rilis proyek **FieldOps IT** dicatat secara 
 
 ---
 
+## 🌟 [v1.2.0-tahap3] - 2026-11-06 (Box, Item Fisik Ber-ID, Stok Jumlah & Input Kamera)
+
+### 📦 Manajemen Box Storage & Pemindaian Stok (Single & Bulk)
+- **Skema Fisik Box & Item (`06_v2_stock_schema.sql`)**: 3 tabel relasional (`box`, `item`, `stok_jumlah`) mendukung lokasi box campuran, pencatatan item fisik ber-ID unik, dan stok jumlah bulk.
+- **Pemindaian Kamera & Scan Beruntun**: Komponen `StockInputModal.tsx` dengan pengintegrasian kamera browser/scanner, pemindaian SN beruntun, serta validasi pola regex (`pola_id`) dan pencegahan ID duplikat secara real-time.
+- **Transaksi Massal N Unit 1 Activity ID**: Seluruh pemrosesan batch N unit (misal 20 SN sekaligus) dicatat sebagai **1 transaksi tunggal** dengan ID aktivitas `AKT-YYYYMMDD-NNNN` dan detail baris per unit.
+- **Penguncian Aturan ID Automatis**: Memasukkan stok fisik pertama kali secara otomatis mengubah `id_dikunci = 1` pada tipe varian terkait untuk menjamin konsistensi format.
+- **Relokasi Antar Box (`pindah_box`)**: Fitur pemindahan item atau stok jumlah antar box dengan dialog `BoxContentModal.tsx` yang mencatat riwayat transaksi `pindah_box`.
+- **Pengujian Otomatis (`tahap3Stock.test.ts`)**: 17/17 pengujian lulus 100% mencakup pembuatan box, validasi regex, penolakan SN duplikat, batch 20 SN 1 activity ID, stok jumlah, kueri isi box terstruktur, dan relokasi item antar box.
+
+---
+
+## 🌟 [v1.2.0-tahap2] - 2026-11-06 (Katalog Bertingkat: Jenis, Atribut, Produk & Tipe)
+
+### 🏷️ Hierarki Katalog Dinamis (Jenis, Atribut, Produk, dan Tipe)
+- **Skema Relasional Terstruktur (`05_v2_catalog_schema.sql`)**: 6 tabel relasional (`jenis`, `atribut`, `atribut_opsi`, `produk`, `tipe`, `tipe_nilai`) dengan relasi foreign key dan cascade constraint.
+- **Pembentukan Nama Tipe Otomatis (`generateTipeName`)**: Nama varian tipe dibentuk secara otomatis dari atribut yang memiliki penanda `masuk_nama = 1` berurutan berdasarkan kolom `urutan` (contoh: `"12V / 1A"`, `"12V / 3A / Jack 5.5mm"`, `"Cat6 / 305m"`).
+- **Aturan ID per Tipe**: Konfigurasi per varian (`scan_sn`, `otomatis`, `manual`, `tanpa_id`), format `prefix_id`, validasi regex `pola_id`, dan penguncian `id_dikunci` setelah stok pertama masuk.
+- **Tombol Tambah Atribut Inline di Modal Produk**: Di halaman pembuatan produk, jika Jenis yang dipilih belum memiliki atribut, sistem langsung menampilkan tombol `+ Tambah Atribut untuk Jenis Ini` di dalam modal tanpa perlu berpindah layar.
+- **Filter Spesifikasi Dinamis**: Filter katalog secara dinamis menghasilkan pilihan dropdown/checkbox untuk atribut `pilihan` dan input rentang angka untuk atribut `angka` (contoh: "Arus ≥ 2A").
+- **Pengujian Otomatis (`tahap2Catalog.test.ts`)**: 13/13 pengujian lulus 100% mencakup pembuatan jenis, relasi atribut, auto-naming tipe, penolakan nama duplikat, validasi atribut wajib, penambahan opsi baru dinamis, dan koreksi aturan ID.
+
+---
+
+## 🔒 [v1.2.0-tahap1] - 2026-11-06 (Fondasi Keamanan, Sesi Server & Sampah 14 Hari)
+
+### 🛡️ Sesi Server & Konfirmasi Bertingkat
+- **Server-Authoritative Sessions (`sesi`)**: Access token 15 menit, refresh token berotasi, deteksi anti-replay reuse token, dan batas kuota sesi tunggal per akun (`MAX_SESI_PER_AKUN = 1`).
+- **Konfirmasi Bertingkat (Tier 0-3)**: Penegakan verifikasi server dengan token sekali pakai (TTL 120s), proteksi penghapusan tingkat 3 (wajib ketik nama objek + verifikasi password).
+- **Log Aktivitas Append-Only (`transaksi`)**: Format ID Aktivitas harian `AKT-YYYYMMDD-NNNN` untuk setiap mutasi dan aksi administratif.
+- **Sampah Hapus Permanen 14 Hari (`sampah_hapus`)**: Penyimpanan snapshot data sebelum pemusnahan mutlak, dilengkapi CLI pemulihan `npm run sampah -- --list / --pulihkan <id> [--dry-run]`.
+- **Pengujian Otomatis (`tahap1Foundation.test.ts`)**: 19/19 pengujian lulus 100%.
+
+---
+
 ## 🌟 [v1.1.0] - 2026-11-05 (Soft Delete Recycle Bin, Production Auth & Demo Removal)
 
 ### 🗑️ Modul Antarmuka Kotak Sampah (Soft Delete Recycle Bin & Restore)

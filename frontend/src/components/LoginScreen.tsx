@@ -1,11 +1,12 @@
 /**
- * Login & User Registration Screen (Server-Authoritative Authentication)
+ * Login, User Registration & Password Reset Screen (Server-Authoritative Authentication)
  * FieldOps IT - Akses Mandiri & Pendaftaran Akun Internal
  */
 
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, Lock, User, AlertCircle, ArrowRight, UserPlus, CheckCircle2 } from 'lucide-react';
+import { api } from '../services/api';
+import { ShieldCheck, Lock, User, AlertCircle, ArrowRight, UserPlus, CheckCircle2, KeyRound, Mail, ArrowLeft } from 'lucide-react';
 
 interface LoginScreenProps {
   onLoginSuccess?: () => void;
@@ -13,11 +14,13 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const { login, register } = useAuth();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
   
   // Form states
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<'warehouse_admin' | 'technician'>('warehouse_admin');
   
@@ -30,23 +33,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     setErrorMsg('');
     setSuccessMsg('');
 
-    if (!username.trim() || !password.trim()) {
-      setErrorMsg('Username dan kata sandi wajib diisi.');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
       if (mode === 'login') {
+        if (!username.trim() || !password.trim()) {
+          setErrorMsg('Username dan kata sandi wajib diisi.');
+          setIsLoading(false);
+          return;
+        }
         const result = await login(username.trim(), password);
         if (result.success) {
           onLoginSuccess?.();
         } else {
           setErrorMsg(result.message || 'Username atau kata sandi tidak cocok.');
         }
-      } else {
-        // Mode register (role di bawah admin & developer)
+      } else if (mode === 'register') {
+        if (!username.trim() || !password.trim()) {
+          setErrorMsg('Username dan kata sandi wajib diisi.');
+          setIsLoading(false);
+          return;
+        }
         const result = await register({
           username: username.trim(),
           name: name.trim() || username.trim(),
@@ -60,12 +67,40 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           setUsername('');
           setName('');
           setPassword('');
-          // Alihkan kembali ke tab login setelah 2.5 detik
           setTimeout(() => {
             setMode('login');
           }, 2500);
         } else {
           setErrorMsg(result.message || 'Gagal mendaftarkan akun baru.');
+        }
+      } else if (mode === 'forgot') {
+        // Mode Forgot / Reset Password
+        if (!username.trim() || !password.trim()) {
+          setErrorMsg('Username dan kata sandi baru wajib diisi.');
+          setIsLoading(false);
+          return;
+        }
+        if (password !== confirmPassword) {
+          setErrorMsg('Konfirmasi kata sandi tidak cocok.');
+          setIsLoading(false);
+          return;
+        }
+        const result = await api.resetPassword({
+          username: username.trim(),
+          email: email.trim(),
+          newPassword: password.trim()
+        });
+
+        if (result.success) {
+          setSuccessMsg(result.message || 'Kata sandi berhasil diperbarui! Silakan masuk.');
+          setPassword('');
+          setConfirmPassword('');
+          setEmail('');
+          setTimeout(() => {
+            setMode('login');
+          }, 2500);
+        } else {
+          setErrorMsg(result.message || 'Gagal memperbarui kata sandi.');
         }
       }
     } catch (err: any) {
@@ -81,50 +116,75 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         
         {/* Header Branding */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-slate-900 dark:bg-slate-800 text-emerald-400 border border-slate-700/50 mb-2">
-            <ShieldCheck className="w-8 h-8" />
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md p-2 mb-1 overflow-hidden">
+            <img 
+              src="/assets/logo-icon.webp" 
+              alt="FieldOps IT Icon" 
+              className="w-full h-full object-contain rounded-xl" 
+            />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50 font-display">
             FieldOps IT
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Sistem Inventarisasi Suku Cadang Kantor ISP · Server Lokal
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            Sistem Inventarisasi Suku Cadang &amp; Manajemen IT Lapangan
           </p>
         </div>
 
         {/* Tab Switcher (Masuk vs Daftar Akun Baru) */}
-        <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
-          <button
-            type="button"
-            onClick={() => {
-              setMode('login');
-              setErrorMsg('');
-              setSuccessMsg('');
-            }}
-            className={`py-2 rounded-lg transition-all text-center cursor-pointer ${
-              mode === 'login'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            Masuk ke Sistem
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('register');
-              setErrorMsg('');
-              setSuccessMsg('');
-            }}
-            className={`py-2 rounded-lg transition-all text-center cursor-pointer ${
-              mode === 'register'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            Buat Akun Baru
-          </button>
-        </div>
+        {mode !== 'forgot' ? (
+          <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('login');
+                setErrorMsg('');
+                setSuccessMsg('');
+              }}
+              className={`py-2 rounded-lg transition-all text-center cursor-pointer ${
+                mode === 'login'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              Masuk ke Sistem
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('register');
+                setErrorMsg('');
+                setSuccessMsg('');
+              }}
+              className={`py-2 rounded-lg transition-all text-center cursor-pointer ${
+                mode === 'register'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              Buat Akun Baru
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-semibold">
+              <KeyRound className="w-4 h-4 text-amber-500" />
+              <span>Reset / Pemulihan Kata Sandi</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('login');
+                setErrorMsg('');
+                setSuccessMsg('');
+              }}
+              className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 font-medium cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+          </div>
+        )}
 
         {/* Error Alert */}
         {errorMsg && (
@@ -184,7 +244,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             </>
           )}
 
-          {/* Username */}
+          {/* Username (Digunakan di semua mode) */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               Username
@@ -202,11 +262,45 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             </div>
           </div>
 
+          {/* Field Email Terdaftar (Khusus mode Forgot) */}
+          {mode === 'forgot' && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Email Terdaftar (Opsional)
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Contoh: budi@fieldops.local (Opsional)"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all text-slate-900 dark:text-slate-100"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Kata Sandi */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Kata Sandi
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {mode === 'forgot' ? 'Kata Sandi Baru' : 'Kata Sandi'}
+              </label>
+              {mode === 'login' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('forgot');
+                    setErrorMsg('');
+                    setSuccessMsg('');
+                  }}
+                  className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer font-medium"
+                >
+                  Lupa Kata Sandi?
+                </button>
+              )}
+            </div>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
@@ -214,11 +308,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Masukkan kata sandi..."
+                placeholder={mode === 'forgot' ? 'Masukkan kata sandi baru...' : 'Masukkan kata sandi...'}
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all text-slate-900 dark:text-slate-100"
               />
             </div>
           </div>
+
+          {/* Konfirmasi Kata Sandi Baru (Khusus Mode Forgot) */}
+          {mode === 'forgot' && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Konfirmasi Kata Sandi Baru
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Ulangi kata sandi baru..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all text-slate-900 dark:text-slate-100"
+                />
+              </div>
+            </div>
+          )}
 
           <button
             type="submit"
@@ -232,10 +346,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 <span>Masuk ke Sistem</span>
                 <ArrowRight className="w-4 h-4" />
               </>
-            ) : (
+            ) : mode === 'register' ? (
               <>
                 <UserPlus className="w-4 h-4" />
-                <span>Daftar &amp; Masuk ke Sistem</span>
+                <span>Daftar &amp; Ajukan Akun</span>
+              </>
+            ) : (
+              <>
+                <KeyRound className="w-4 h-4" />
+                <span>Simpan Kata Sandi Baru</span>
               </>
             )}
           </button>

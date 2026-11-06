@@ -109,18 +109,15 @@ export const api = {
   },
 
   async register(userData: { username: string; name?: string; email?: string; role?: string; department?: string; password: string }): Promise<{ success: boolean; user?: UserProfile; message?: string }> {
+    authToken = null;
+    try { localStorage.removeItem('fieldops_token'); } catch {}
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData),
       credentials: 'include'
     });
-    const data = await res.json();
-    if (data.token) {
-      authToken = data.token;
-      try { localStorage.setItem('fieldops_token', data.token); } catch {}
-    }
-    return data;
+    return res.json();
   },
 
   async getMe(): Promise<{ success: boolean; user?: UserProfile }> {
@@ -199,6 +196,25 @@ export const api = {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(userData),
+      credentials: 'include'
+    });
+    return res.json();
+  },
+
+  async resetPassword(data: { username: string; email?: string; newPassword: string }): Promise<{ success: boolean; message: string }> {
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
+  async adminResetPassword(userId: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`/api/auth/users/${userId}/reset-password`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ newPassword }),
       credentials: 'include'
     });
     return res.json();

@@ -176,7 +176,20 @@ docker compose exec backend npm run setup:admin
 ```
 Pilih `y` saat ditanya apakah ingin mereset kata sandi akun yang sudah ada.
 
-### 4. Bentrok Port 3000 atau 3306
+### 4. Pemulihan Data dari Tempat Sampah (14-Day Retention)
+Jika terjadi penghapusan permanen tidak sengaja oleh pengguna, administrator server dapat memulihkan data melalui terminal dalam masa tenggang 14 hari:
+```bash
+# Melihat daftar entri yang dapat dipulihkan
+npm run sampah -- --list
+
+# Uji coba pemulihan tanpa mengubah data (Dry-Run)
+npm run sampah -- --pulihkan <ID_SAMPAH> --dry-run
+
+# Mengeksekusi pemulihan data ke sistem aktif
+npm run sampah -- --pulihkan <ID_SAMPAH>
+```
+
+### 5. Bentrok Port 3000 atau 3306
 Jika port 3000 sudah digunakan oleh aplikasi lain di server kantor:
 1. Buka file `docker-compose.yml`.
 2. Ubah pemetaan port backend, misalnya dari `"3000:3000"` menjadi `"8080:3000"`.
@@ -231,18 +244,24 @@ Jika PC atau server kantor **tidak dapat menjalankan Docker** (karena keterbatas
    CREATE DATABASE fieldops_inventory CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
 
-3. **Impor 3 Skema Migration SQL**:
+3. **Impor 6 Skema Migration SQL**:
    - **Linux / Ubuntu**:
      ```bash
      mysql -u root -p fieldops_inventory < backend/src/db/migrations/01_auth_schema.sql
      mysql -u root -p fieldops_inventory < backend/src/db/migrations/02_inventory_schema.sql
      mysql -u root -p fieldops_inventory < backend/src/db/migrations/03_audit_trail_schema.sql
+     mysql -u root -p fieldops_inventory < backend/src/db/migrations/04_v2_foundation_schema.sql
+     mysql -u root -p fieldops_inventory < backend/src/db/migrations/05_v2_catalog_schema.sql
+     mysql -u root -p fieldops_inventory < backend/src/db/migrations/06_v2_stock_schema.sql
      ```
    - **Windows (CMD / PowerShell)**:
      ```cmd
      mysql -u root -p fieldops_inventory < backend\src\db\migrations\01_auth_schema.sql
      mysql -u root -p fieldops_inventory < backend\src\db\migrations\02_inventory_schema.sql
      mysql -u root -p fieldops_inventory < backend\src\db\migrations\03_audit_trail_schema.sql
+     mysql -u root -p fieldops_inventory < backend\src\db\migrations\04_v2_foundation_schema.sql
+     mysql -u root -p fieldops_inventory < backend\src\db\migrations\05_v2_catalog_schema.sql
+     mysql -u root -p fieldops_inventory < backend\src\db\migrations\06_v2_stock_schema.sql
      ```
 
 4. **Konfigurasi File `.env`**:

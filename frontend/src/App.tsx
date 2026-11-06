@@ -189,7 +189,8 @@ const AppContent: React.FC = () => {
       <footer className="no-print border-t border-slate-200/60 dark:border-slate-800/80 glass py-4 pb-24 md:pb-6 mt-12 text-xs text-slate-600 dark:text-slate-400">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-slate-800 dark:text-slate-200">FieldOps IT · Inventarisasi Suku Cadang & Auto-Deduct Tiket Lapangan</span>
+            <img src="/assets/logo-full.webp" alt="FieldOps IT" className="h-5 w-auto object-contain dark:brightness-110" />
+            <span className="font-medium text-slate-800 dark:text-slate-200">· Inventarisasi Suku Cadang &amp; Auto-Deduct Tiket Lapangan</span>
             <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 rounded-md">
               v{VERSION}
             </span>

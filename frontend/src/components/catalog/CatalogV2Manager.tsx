@@ -1,0 +1,1655 @@
+/**
+ * Catalog V2 Manager (Jenis, Atribut, Produk, dan Tipe)
+ * FieldOps Inventory v2 - Tahap 2: Katalog Bertingkat
+ */
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  Layers,
+  Plus,
+  Tag,
+  Search,
+  Filter,
+  Sliders,
+  ChevronDown,
+  ChevronUp,
+  Lock,
+  Unlock,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Sparkles,
+  QrCode,
+  RefreshCw,
+  Info,
+  Hash,
+  Database,
+  Box as BoxIcon,
+  Camera,
+  ArrowRightLeft
+} from 'lucide-react';
+import { catalogApi, Jenis, Atribut, Produk, Tipe } from '../../services/catalogApi';
+import { useAuth } from '../../context/AuthContext';
+import { useInventory } from '../../context/InventoryContext';
+import { StockInputModal } from '../stock/StockInputModal';
+import { BoxManagerModal } from '../stock/BoxManagerModal';
+import { BoxContentModal } from '../stock/BoxContentModal';
+
+export const CatalogV2Manager: React.FC = () => {
+  const { user } = useAuth();
+  const { showToast } = useInventory();
+
+  // State utama
+  const [activeSubTab, setActiveSubTab] = useState<'products' | 'jenis_attrs'>('products');
+  const [jenisList, setJenisList] = useState<Jenis[]>([]);
+  const [products, setProducts] = useState<Produk[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Filter & Pencarian Produk
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedJenisId, setSelectedJenisId] = useState<string>('ALL');
+  const [selectedKategori, setSelectedKategori] = useState<string>('ALL');
+  const [expandedProductIds, setExpandedProductIds] = useState<{ [id: number]: boolean }>({});
+
+  // Filter Atribut Dinamis
+  const [attrOptionFilters, setAttrOptionFilters] = useState<{ [attrId: number]: string }>({});
+  const [attrMinNumberFilters, setAttrMinNumberFilters] = useState<{ [attrId: number]: string }>({});
+
+  // Modals
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
+  const [selectedProductForType, setSelectedProductForType] = useState<Produk | null>(null);
+
+  const [isAddJenisOpen, setIsAddJenisOpen] = useState(false);
+  const [isAddAttrOpen, setIsAddAttrOpen] = useState(false);
+  const [selectedJenisForAttr, setSelectedJenisForAttr] = useState<Jenis | null>(null);
+
+  const [isCorrectIdRuleOpen, setIsCorrectIdRuleOpen] = useState(false);
+  const [selectedTypeForIdRule, setSelectedTypeForIdRule] = useState<Tipe | null>(null);
+
+  // Tahap 3 Stock Modals
+  const [isStockInputOpen, setIsStockInputOpen] = useState(false);
+  const [isBoxManagerOpen, setIsBoxManagerOpen] = useState(false);
+  const [selectedBoxForContent, setSelectedBoxForContent] = useState<string | null>(null);
+
+  // Form Buat Produk
+  const [newProdJenisId, setNewProdJenisId] = useState<number | ''>('');
+  const [newProdNama, setNewProdNama] = useState('');
+  const [newProdKategori, setNewProdKategori] = useState<'fast_moving' | 'recycle'>('fast_moving');
+  const [newProdCatatan, setNewProdCatatan] = useState('');
+
+  // Form Buat Tipe
+  const [typeAttrValues, setTypeAttrValues] = useState<{
+    [attrId: number]: {
+      nilai_angka?: number | '';
+      opsi_id?: number | '';
+      opsi_baru?: string;
+      nilai_teks?: string;
+    };
+  }>({});
+  const [typeSumberId, setTypeSumberId] = useState<'scan_sn' | 'otomatis' | 'manual' | 'tanpa_id'>('manual');
+  const [typePrefixId, setTypePrefixId] = useState('');
+  const [typePolaId, setTypePolaId] = useState('');
+  const [typeCatatan, setTypeCatatan] = useState('');
+
+  // Form Koreksi Aturan ID
+  const [correctSumberId, setCorrectSumberId] = useState<'scan_sn' | 'otomatis' | 'manual' | 'tanpa_id'>('manual');
+  const [correctPrefixId, setCorrectPrefixId] = useState('');
+  const [correctPolaId, setCorrectPolaId] = useState('');
+  const [correctAlasan, setCorrectAlasan] = useState('');
+
+  // Form Buat Atribut
+  const [newAttrKode, setNewAttrKode] = useState('');
+  const [newAttrNama, setNewAttrNama] = useState('');
+  const [newAttrTipeIsian, setNewAttrTipeIsian] = useState<'angka' | 'pilihan' | 'teks'>('pilihan');
+  const [newAttrSatuan, setNewAttrSatuan] = useState('');
+  const [newAttrWajib, setNewAttrWajib] = useState(true);
+  const [newAttrMasukNama, setNewAttrMasukNama] = useState(true);
+  const [newAttrOpsiText, setNewAttrOpsiText] = useState('');
+
+  // Form Buat Jenis
+  const [newJenisNama, setNewJenisNama] = useState('');
+  const [newJenisSumberId, setNewJenisSumberId] = useState<'scan_sn' | 'otomatis' | 'manual' | 'tanpa_id'>('manual');
+  const [newJenisPrefix, setNewJenisPrefix] = useState('');
+
+  // Check roles (developer, admin, warehouse_admin)
+  const canManageCatalog = user?.role === 'developer' || user?.role === 'admin' || user?.role === 'warehouse_admin';
+
+  // Memuat data
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [jList, pList] = await Promise.all([
+        catalogApi.listJenis(),
+        catalogApi.listProduk()
+      ]);
+      setJenisList(jList);
+      setProducts(pList);
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Atribut yang dimiliki oleh jenis yang sedang dipilih untuk filter
+  const currentJenisAttributes = useMemo(() => {
+    if (selectedJenisId === 'ALL') return [];
+    const j = jenisList.find(item => item.id === parseInt(selectedJenisId, 10));
+    return j?.atributs || [];
+  }, [selectedJenisId, jenisList]);
+
+  // Kalkulasi nama tipe otomatis di form tambah tipe secara real-time
+  const computedAutoTypeName = useMemo(() => {
+    if (!selectedProductForType) return '';
+    const j = jenisList.find(item => item.id === selectedProductForType.jenis_id);
+    if (!j || !j.atributs) return 'Standar';
+
+    const sortedAttrs = [...j.atributs].sort((a, b) => a.urutan - b.urutan);
+    const parts: string[] = [];
+
+    for (const a of sortedAttrs) {
+      if (!a.masuk_nama) continue;
+      const val = typeAttrValues[a.id];
+      if (!val) continue;
+
+      if (a.tipe_isian === 'angka' && typeof val.nilai_angka === 'number') {
+        parts.push(`${val.nilai_angka}${a.satuan || ''}`);
+      } else if (a.tipe_isian === 'pilihan') {
+        if (val.opsi_baru && val.opsi_baru.trim().length > 0) {
+          parts.push(val.opsi_baru.trim());
+        } else if (val.opsi_id && a.opsi) {
+          const matched = a.opsi.find(o => o.id === val.opsi_id);
+          if (matched) parts.push(matched.nilai.trim());
+        }
+      } else if (a.tipe_isian === 'teks' && val.nilai_teks) {
+        parts.push(val.nilai_teks.trim());
+      }
+    }
+
+    return parts.length > 0 ? parts.join(' / ') : 'Standar';
+  }, [selectedProductForType, jenisList, typeAttrValues]);
+
+  // Filter daftar produk
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+
+    return products.filter(p => {
+      if (selectedJenisId !== 'ALL' && p.jenis_id !== parseInt(selectedJenisId, 10)) {
+        return false;
+      }
+
+      if (selectedKategori !== 'ALL' && p.kategori !== selectedKategori) {
+        return false;
+      }
+
+      if (q !== '') {
+        const matchName = p.nama.toLowerCase().includes(q);
+        const matchJenis = (p.jenis_nama || '').toLowerCase().includes(q);
+        if (!matchName && !matchJenis) return false;
+      }
+
+      // Filter atribut dinamis (jika ada tipe di bawah produk)
+      if (selectedJenisId !== 'ALL' && p.tipes && p.tipes.length > 0) {
+        // Cek filter opsi
+        for (const [attrIdStr, selectedOpsi] of Object.entries(attrOptionFilters)) {
+          if (!selectedOpsi) continue;
+          const attrId = parseInt(attrIdStr, 10);
+          const hasMatchingTipe = p.tipes.some(t => {
+            const valObj = t.nilai_atribut?.find(v => v.atribut_id === attrId);
+            return valObj && String(valObj.opsi_id) === String(selectedOpsi);
+          });
+          if (!hasMatchingTipe) return false;
+        }
+
+        // Cek filter angka minimal
+        for (const [attrIdStr, minValStr] of Object.entries(attrMinNumberFilters)) {
+          if (!minValStr) continue;
+          const minVal = parseFloat(minValStr);
+          if (isNaN(minVal)) continue;
+          const attrId = parseInt(attrIdStr, 10);
+          const hasMatchingTipe = p.tipes.some(t => {
+            const valObj = t.nilai_atribut?.find(v => v.atribut_id === attrId);
+            return valObj && typeof valObj.nilai_angka === 'number' && valObj.nilai_angka >= minVal;
+          });
+          if (!hasMatchingTipe) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [products, selectedJenisId, selectedKategori, searchQuery, attrOptionFilters, attrMinNumberFilters]);
+
+  // Toggle detail produk & muat tipe
+  const toggleProductExpand = async (productId: number) => {
+    const isNowExpanded = !expandedProductIds[productId];
+    setExpandedProductIds(prev => ({ ...prev, [productId]: isNowExpanded }));
+
+    if (isNowExpanded) {
+      try {
+        const types = await catalogApi.listTipeByProduk(productId);
+        setProducts(prev => prev.map(p => p.id === productId ? { ...p, tipes: types } : p));
+      } catch (err: any) {
+        showToast(err.message, 'error');
+      }
+    }
+  };
+
+  // Buka modal buat tipe untuk produk tertentu
+  const handleOpenAddType = (prod: Produk) => {
+    setSelectedProductForType(prod);
+    const j = jenisList.find(item => item.id === prod.jenis_id);
+
+    // Set default sumber_id dari jenis
+    setTypeSumberId(j?.sumber_id_bawaan || 'manual');
+    setTypePrefixId(j?.prefix_id_bawaan || '');
+    setTypePolaId('');
+    setTypeCatatan('');
+    setTypeAttrValues({});
+    setIsAddTypeOpen(true);
+  };
+
+  // Simpan Produk Baru
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProdJenisId || !newProdNama.trim()) {
+      showToast('Pilih Jenis dan masukkan nama produk.', 'warning');
+      return;
+    }
+
+    try {
+      await catalogApi.createProduk({
+        jenis_id: Number(newProdJenisId),
+        nama: newProdNama.trim(),
+        kategori: newProdKategori,
+        catatan: newProdCatatan.trim() || undefined
+      });
+
+      showToast(`Produk "${newProdNama.trim()}" berhasil dibuat.`, 'success');
+      setIsAddProductOpen(false);
+      setNewProdNama('');
+      setNewProdCatatan('');
+      await loadData();
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Simpan Tipe Baru
+  const handleCreateType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProductForType) return;
+
+    const j = jenisList.find(item => item.id === selectedProductForType.jenis_id);
+    if (!j) return;
+
+    // Susun nilai atribut
+    const nilaiPayload: any[] = [];
+    for (const a of j.atributs || []) {
+      const val = typeAttrValues[a.id];
+      if (a.wajib) {
+        const hasVal = val && (
+          (val.nilai_angka !== '' && val.nilai_angka !== undefined) ||
+          val.opsi_id ||
+          (val.opsi_baru && val.opsi_baru.trim().length > 0) ||
+          (val.nilai_teks && val.nilai_teks.trim().length > 0)
+        );
+        if (!hasVal) {
+          showToast(`Atribut wajib "${a.nama}" belum diisi.`, 'warning');
+          return;
+        }
+      }
+
+      if (val) {
+        nilaiPayload.push({
+          atribut_id: a.id,
+          nilai_angka: typeof val.nilai_angka === 'number' ? val.nilai_angka : null,
+          opsi_id: val.opsi_id ? Number(val.opsi_id) : null,
+          opsi_baru: val.opsi_baru ? val.opsi_baru.trim() : null,
+          nilai_teks: val.nilai_teks ? val.nilai_teks.trim() : null
+        });
+      }
+    }
+
+    try {
+      await catalogApi.createTipe({
+        produk_id: selectedProductForType.id,
+        catatan: typeCatatan.trim() || undefined,
+        sumber_id: typeSumberId,
+        prefix_id: typePrefixId.trim() || undefined,
+        pola_id: typePolaId.trim() || undefined,
+        nilai_atribut: nilaiPayload
+      });
+
+      showToast(`Tipe varian "${computedAutoTypeName}" berhasil dibuat!`, 'success');
+      setIsAddTypeOpen(false);
+      // Reload tipe produk
+      const updatedTypes = await catalogApi.listTipeByProduk(selectedProductForType.id);
+      setProducts(prev => prev.map(p => p.id === selectedProductForType.id ? { ...p, tipes: updatedTypes, total_tipe: updatedTypes.length } : p));
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Simpan Atribut Baru
+  const handleCreateAtribut = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedJenisForAttr || !newAttrKode.trim() || !newAttrNama.trim()) {
+      showToast('Lengkapi kode dan nama atribut.', 'warning');
+      return;
+    }
+
+    const opsiArray = newAttrTipeIsian === 'pilihan'
+      ? newAttrOpsiText.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+
+    try {
+      await catalogApi.createAtribut({
+        jenis_id: selectedJenisForAttr.id,
+        kode: newAttrKode.trim().toLowerCase(),
+        nama: newAttrNama.trim(),
+        tipe_isian: newAttrTipeIsian,
+        satuan: newAttrSatuan.trim() || undefined,
+        wajib: newAttrWajib,
+        masuk_nama: newAttrMasukNama,
+        opsi: opsiArray
+      });
+
+      showToast(`Atribut "${newAttrNama.trim()}" berhasil ditambahkan.`, 'success');
+      setIsAddAttrOpen(false);
+      setNewAttrKode('');
+      setNewAttrNama('');
+      setNewAttrSatuan('');
+      setNewAttrOpsiText('');
+      await loadData();
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Simpan Jenis Baru
+  const handleCreateJenis = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newJenisNama.trim()) {
+      showToast('Nama Jenis wajib diisi.', 'warning');
+      return;
+    }
+
+    try {
+      await catalogApi.createJenis({
+        nama: newJenisNama.trim(),
+        sumber_id_bawaan: newJenisSumberId,
+        prefix_id_bawaan: newJenisPrefix.trim() || undefined
+      });
+
+      showToast(`Jenis "${newJenisNama.trim()}" berhasil dibuat.`, 'success');
+      setIsAddJenisOpen(false);
+      setNewJenisNama('');
+      setNewJenisPrefix('');
+      await loadData();
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Simpan Koreksi Aturan ID
+  const handleSaveIdRuleCorrection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTypeForIdRule || !correctAlasan.trim()) {
+      showToast('Alasan koreksi aturan ID wajib diisi.', 'warning');
+      return;
+    }
+
+    try {
+      await catalogApi.updateAturanId(selectedTypeForIdRule.id, {
+        sumber_id: correctSumberId,
+        prefix_id: correctPrefixId.trim() || undefined,
+        pola_id: correctPolaId.trim() || undefined,
+        alasan: correctAlasan.trim()
+      });
+
+      showToast('Aturan ID berhasil diperbarui.', 'success');
+      setIsCorrectIdRuleOpen(false);
+      // Refresh tipe
+      if (selectedTypeForIdRule.produk_id) {
+        const updated = await catalogApi.listTipeByProduk(selectedTypeForIdRule.produk_id);
+        setProducts(prev => prev.map(p => p.id === selectedTypeForIdRule.produk_id ? { ...p, tipes: updated } : p));
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs transition-colors">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <span>FieldOps IT Inventory v2</span>
+              <span aria-hidden="true">·</span>
+              <span>Katalog Bertingkat</span>
+              <span aria-hidden="true">·</span>
+              <span className="font-mono text-emerald-600 dark:text-emerald-400">Jenis → Atribut → Produk → Tipe</span>
+            </div>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight mt-1">
+              Katalog Suku Cadang & Aturan ID Varian
+            </h1>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
+              Struktur katalog multi-tier dengan pembentukan nama varian otomatis, validasi regex ID item, dan isolasi filter dinamis tanpa pengaturan manual.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {canManageCatalog && (
+              <button
+                onClick={() => setIsStockInputOpen(true)}
+                className="px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors flex items-center gap-2 shadow-xs"
+              >
+                <Camera className="w-4 h-4" />
+                <span>Input Stok Kamera / Massal</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setIsBoxManagerOpen(true)}
+              className="px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <BoxIcon className="w-4 h-4 text-emerald-500" />
+              <span>Storage Box</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('products')}
+              className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 ${
+                activeSubTab === 'products'
+                  ? 'bg-slate-900 dark:bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Tag className="w-4 h-4" />
+              <span>Daftar Produk & Varian</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('jenis_attrs')}
+              className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 ${
+                activeSubTab === 'jenis_attrs'
+                  ? 'bg-slate-900 dark:bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>Kelola Jenis & Atribut</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* SUBTAB 1: DAFTAR PRODUK & TIPE */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'products' && (
+        <div className="space-y-4">
+          {/* Toolbar & Filter */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-3">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari nama produk atau jenis katalog..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Filter Jenis */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedJenisId}
+                  onChange={e => {
+                    setSelectedJenisId(e.target.value);
+                    setAttrOptionFilters({});
+                    setAttrMinNumberFilters({});
+                  }}
+                  className="px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="ALL">Semua Jenis ({jenisList.length})</option>
+                  {jenisList.map(j => (
+                    <option key={j.id} value={j.id}>
+                      {j.nama} ({j.total_produk || 0} produk)
+                    </option>
+                  ))}
+                </select>
+
+                {/* Filter Kategori */}
+                <select
+                  value={selectedKategori}
+                  onChange={e => setSelectedKategori(e.target.value)}
+                  className="px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="ALL">Semua Kategori</option>
+                  <option value="fast_moving">Fast Moving</option>
+                  <option value="recycle">Recycle</option>
+                </select>
+
+                {canManageCatalog && (
+                  <button
+                    onClick={() => {
+                      if (jenisList.length === 0) {
+                        showToast('Buat Jenis katalog terlebih dahulu sebelum membuat produk.', 'warning');
+                        setActiveSubTab('jenis_attrs');
+                        setIsAddJenisOpen(true);
+                      } else {
+                        setNewProdJenisId(jenisList[0].id);
+                        setIsAddProductOpen(true);
+                      }
+                    }}
+                    className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-xs"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Buat Produk</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter Dinamis Atribut (jika Jenis tertentu dipilih) */}
+            {currentJenisAttributes.length > 0 && (
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-3 text-xs">
+                <span className="font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5" />
+                  Filter Spesifikasi:
+                </span>
+
+                {currentJenisAttributes.map(attr => {
+                  if (attr.tipe_isian === 'pilihan' && attr.opsi && attr.opsi.length > 0) {
+                    return (
+                      <div key={attr.id} className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700">
+                        <span className="text-slate-600 dark:text-slate-300 font-medium">{attr.nama}:</span>
+                        <select
+                          value={attrOptionFilters[attr.id] || ''}
+                          onChange={e => setAttrOptionFilters(prev => ({ ...prev, [attr.id]: e.target.value }))}
+                          className="bg-transparent text-slate-800 dark:text-slate-200 focus:outline-hidden"
+                        >
+                          <option value="">Semua</option>
+                          {attr.opsi.map(o => (
+                            <option key={o.id} value={o.id}>{o.nilai}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
+
+                  if (attr.tipe_isian === 'angka') {
+                    return (
+                      <div key={attr.id} className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700">
+                        <span className="text-slate-600 dark:text-slate-300 font-medium">{attr.nama} ≥</span>
+                        <input
+                          type="number"
+                          placeholder={`Min (${attr.satuan || ''})`}
+                          value={attrMinNumberFilters[attr.id] || ''}
+                          onChange={e => setAttrMinNumberFilters(prev => ({ ...prev, [attr.id]: e.target.value }))}
+                          className="w-16 bg-transparent text-slate-800 dark:text-slate-200 focus:outline-hidden"
+                        />
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })}
+
+                {(Object.keys(attrOptionFilters).length > 0 || Object.keys(attrMinNumberFilters).length > 0) && (
+                  <button
+                    onClick={() => {
+                      setAttrOptionFilters({});
+                      setAttrMinNumberFilters({});
+                    }}
+                    className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium text-[11px]"
+                  >
+                    Reset Filter Spesifikasi
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* List Produk */}
+          {loading ? (
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center text-slate-500">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-500" />
+              <span>Memuat katalog bertingkat...</span>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
+              <Tag className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Tidak ada produk ditemukan</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Sesuaikan kata kunci pencarian atau buat produk baru untuk memulai katalog v2.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredProducts.map(prod => {
+                const isExpanded = !!expandedProductIds[prod.id];
+                return (
+                  <div
+                    key={prod.id}
+                    className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors"
+                  >
+                    {/* Header Produk Card */}
+                    <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5">
+                          <Tag className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-900 dark:text-white text-base">
+                              {prod.nama}
+                            </span>
+                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                              Jenis: {prod.jenis_nama}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                                prod.kategori === 'fast_moving'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                                  : 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                              }`}
+                            >
+                              {prod.kategori === 'fast_moving' ? 'Fast Moving' : 'Recycle'}
+                            </span>
+                          </div>
+                          {prod.catatan && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                              {prod.catatan}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end md:self-center">
+                        <button
+                          onClick={() => toggleProductExpand(prod.id)}
+                          className="px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-1.5"
+                        >
+                          <span>{prod.total_tipe ?? prod.tipes?.length ?? 0} Varian Tipe</span>
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+
+                        {canManageCatalog && (
+                          <button
+                            onClick={() => handleOpenAddType(prod)}
+                            className="px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors flex items-center gap-1 shadow-xs"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Tambah Tipe</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Varian Tipe Expandable Drawer */}
+                    {isExpanded && (
+                      <div className="bg-slate-50/70 dark:bg-slate-950/50 p-4 border-t border-slate-100 dark:border-slate-800/80 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Daftar Varian Tipe Produk: {prod.nama}
+                          </h4>
+                          <span className="text-[11px] text-slate-400">
+                            Nama tipe dibuat otomatis dari spesifikasi atribut yang 'masuk_nama'
+                          </span>
+                        </div>
+
+                        {!prod.tipes || prod.tipes.length === 0 ? (
+                          <div className="text-center py-6 bg-white dark:bg-slate-900 rounded-lg border border-dashed border-slate-300 dark:border-slate-800 text-xs text-slate-500">
+                            <span>Belum ada tipe varian untuk produk ini.</span>
+                            {canManageCatalog && (
+                              <button
+                                onClick={() => handleOpenAddType(prod)}
+                                className="block mx-auto mt-2 text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
+                              >
+                                + Tambah Tipe Pertama Sekarang
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {prod.tipes.map(t => (
+                              <div
+                                key={t.id}
+                                className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-3.5 shadow-xs space-y-2.5"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-bold text-slate-900 dark:text-white text-sm">
+                                        {t.nama_tipe}
+                                      </span>
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                          t.id_dikunci
+                                            ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                        }`}
+                                        title={t.id_dikunci ? 'Aturan ID dikunci karena sudah pernah ada stok fisik masuk' : 'Aturan ID masih terbuka'}
+                                      >
+                                        {t.id_dikunci ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                                        {t.id_dikunci ? 'Terkunci' : 'Terbuka'}
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                                      Mode: {t.mode_stok === 'per_id' ? 'Item Ber-ID' : 'Stok Jumlah (Bulk)'} · Sumber: {t.sumber_id}
+                                    </span>
+                                  </div>
+
+                                  {canManageCatalog && (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedTypeForIdRule(t);
+                                        setCorrectSumberId(t.sumber_id);
+                                        setCorrectPrefixId(t.prefix_id || '');
+                                        setCorrectPolaId(t.pola_id || '');
+                                        setCorrectAlasan('');
+                                        setIsCorrectIdRuleOpen(true);
+                                      }}
+                                      className="px-2 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                                    >
+                                      Aturan ID
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Nilai Atribut Chip */}
+                                {t.nilai_atribut && t.nilai_atribut.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 pt-1">
+                                    {t.nilai_atribut.map((na, idx) => (
+                                      <span
+                                        key={idx}
+                                        className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                                      >
+                                        {na.atribut_nama}: <strong className="text-slate-900 dark:text-white">{na.nilai_tampil}</strong>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Info Prefix & Pola Regex */}
+                                {(t.prefix_id || t.pola_id) && (
+                                  <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                    {t.prefix_id && <span>Prefix: <strong>{t.prefix_id}</strong></span>}
+                                    {t.pola_id && <span>Pola: <code className="text-emerald-600 dark:text-emerald-400">{t.pola_id}</code></span>}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUBTAB 2: KELOLA JENIS & ATRIBUT */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'jenis_attrs' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                Definisi Golongan Besar (Jenis) & Spesifikasi (Atribut)
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Setiap Jenis (misal: Adaptor, Kabel, Modem/ONU) mendefinisikan kolom atribut spesifiknya masing-masing.
+              </p>
+            </div>
+
+            {canManageCatalog && (
+              <button
+                onClick={() => setIsAddJenisOpen(true)}
+                className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 rounded-lg transition-colors flex items-center gap-1.5 shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tambah Jenis Baru</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {jenisList.map(j => (
+              <div
+                key={j.id}
+                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4 transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 dark:text-white text-base">
+                        {j.nama}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                        {j.total_produk || 0} Produk Aktif
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                      Sumber ID Bawaan: {j.sumber_id_bawaan} {j.prefix_id_bawaan ? `(Prefix: ${j.prefix_id_bawaan})` : ''}
+                    </span>
+                  </div>
+
+                  {canManageCatalog && (
+                    <button
+                      onClick={() => {
+                        setSelectedJenisForAttr(j);
+                        setNewAttrKode('');
+                        setNewAttrNama('');
+                        setNewAttrSatuan('');
+                        setNewAttrOpsiText('');
+                        setIsAddAttrOpen(true);
+                      }}
+                      className="px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors flex items-center gap-1 shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Atribut</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Daftar Atribut */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Daftar Kolom Atribut ({j.atributs?.length || 0}):
+                  </span>
+
+                  {!j.atributs || j.atributs.length === 0 ? (
+                    <div className="p-4 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                      Belum ada atribut spesifikasi untuk jenis ini.
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {j.atributs.map(a => (
+                        <div
+                          key={a.id}
+                          className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-2.5 border border-slate-100 dark:border-slate-800 text-xs flex flex-col gap-1.5"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {a.nama}
+                              </span>
+                              <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                                ({a.kode})
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium">
+                                {a.tipe_isian} {a.satuan ? `(${a.satuan})` : ''}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 text-[10px]">
+                              {a.wajib && (
+                                <span className="text-amber-700 dark:text-amber-400 font-bold">Wajib</span>
+                              )}
+                              {a.masuk_nama && (
+                                <span className="text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950 px-1 rounded">
+                                  Masuk Nama
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Jika Pilihan, tampilkan Opsi */}
+                          {a.tipe_isian === 'pilihan' && a.opsi && a.opsi.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {a.opsi.map(o => (
+                                <span
+                                  key={o.id}
+                                  className="text-[10px] px-2 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                                >
+                                  {o.nilai}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: BUAT PRODUK BARU */}
+      {/* ========================================================================= */}
+      {isAddProductOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                Buat Produk Induk Baru
+              </h3>
+              <button onClick={() => setIsAddProductOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateProduct} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Pilih Jenis Katalog (Golongan Besar) *
+                </label>
+                <select
+                  value={newProdJenisId}
+                  onChange={e => setNewProdJenisId(Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                >
+                  {jenisList.map(j => (
+                    <option key={j.id} value={j.id}>{j.nama}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Seamless Atribut Check as mandated by Section 5 item 2: If Jenis has no attributes, show "Tambah Atribut" directly */}
+              {(() => {
+                const selectedJ = jenisList.find(j => j.id === Number(newProdJenisId));
+                if (!selectedJ || !selectedJ.atributs || selectedJ.atributs.length === 0) {
+                  return (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-lg flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>Jenis "{selectedJ?.nama}" belum memiliki atribut kolom.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedJenisForAttr(selectedJ || null);
+                          setIsAddAttrOpen(true);
+                        }}
+                        className="px-2.5 py-1 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors"
+                      >
+                        + Tambah Atribut Sekarang
+                      </button>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-500 dark:text-slate-400 block mb-1">Atribut yang akan digunakan untuk varian tipe:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedJ.atributs.map(a => (
+                        <span key={a.id} className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                          {a.nama} ({a.tipe_isian})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Nama Produk Induk * (Contoh: Adaptor 12V, Kabel UTP Cat6)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Misal: Adaptor 12V Standar"
+                  value={newProdNama}
+                  onChange={e => setNewProdNama(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Kategori Perputaran *
+                </label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="kategori"
+                      checked={newProdKategori === 'fast_moving'}
+                      onChange={() => setNewProdKategori('fast_moving')}
+                    />
+                    <span className="text-slate-800 dark:text-slate-200">Fast Moving (Pengadaan Baru / Cepat)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="kategori"
+                      checked={newProdKategori === 'recycle'}
+                      onChange={() => setNewProdKategori('recycle')}
+                    />
+                    <span className="text-slate-800 dark:text-slate-200">Recycle (Bekas Tarikan / Servis)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Catatan / Keterangan Tambahan
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Keterangan suku cadang atau peruntukan..."
+                  value={newProdCatatan}
+                  onChange={e => setNewProdCatatan(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddProductOpen(false)}
+                  className="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 font-bold text-white bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 rounded-lg shadow-xs"
+                >
+                  Simpan Produk
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: BUAT TIPE VARIAN BARU (DENGAN NAMA OTOMATIS) */}
+      {/* ========================================================================= */}
+      {isAddTypeOpen && selectedProductForType && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-xl w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Tambah Varian Tipe
+                </h3>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Produk: <strong>{selectedProductForType.nama}</strong> ({selectedProductForType.jenis_nama})
+                </span>
+              </div>
+              <button onClick={() => setIsAddTypeOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateType} className="space-y-4 text-xs">
+              {/* Preview Nama Tipe Otomatis */}
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 rounded-lg">
+                <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  Nama Varian Tipe Otomatis:
+                </span>
+                <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
+                  {computedAutoTypeName}
+                </div>
+              </div>
+
+              {/* Form Input Dinamis Berdasarkan Atribut Jenis */}
+              {(() => {
+                const j = jenisList.find(item => item.id === selectedProductForType.jenis_id);
+                if (!j || !j.atributs || j.atributs.length === 0) {
+                  return (
+                    <div className="p-4 text-center text-slate-500">
+                      Jenis belum memiliki atribut. Harap tambahkan atribut terlebih dahulu.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    <span className="font-bold text-slate-700 dark:text-slate-300 block">
+                      Isi Spesifikasi Atribut ({j.atributs.length}):
+                    </span>
+
+                    {j.atributs.map(a => {
+                      const curVal = typeAttrValues[a.id] || {};
+
+                      return (
+                        <div key={a.id} className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="font-semibold text-slate-800 dark:text-slate-200">
+                              {a.nama} {a.wajib && <span className="text-red-500">*</span>}
+                            </label>
+                            <span className="text-[10px] text-slate-400">
+                              {a.masuk_nama ? 'Digabung ke nama tipe' : 'Hanya spesifikasi internal'}
+                            </span>
+                          </div>
+
+                          {/* Isian Angka */}
+                          {a.tipe_isian === 'angka' && (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                step="any"
+                                placeholder={`Isi angka...`}
+                                value={curVal.nilai_angka ?? ''}
+                                onChange={e => {
+                                  const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                                  setTypeAttrValues(prev => ({
+                                    ...prev,
+                                    [a.id]: { ...prev[a.id], nilai_angka: val }
+                                  }));
+                                }}
+                                className="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                              />
+                              {a.satuan && (
+                                <span className="px-3 py-2 bg-slate-200 dark:bg-slate-700 rounded-lg font-bold text-slate-700 dark:text-slate-300 font-mono">
+                                  {a.satuan}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Isian Pilihan (dengan opsi tambah dinamis) */}
+                          {a.tipe_isian === 'pilihan' && (
+                            <div className="space-y-2">
+                              <select
+                                value={curVal.opsi_id || ''}
+                                onChange={e => {
+                                  const oId = e.target.value ? Number(e.target.value) : '';
+                                  setTypeAttrValues(prev => ({
+                                    ...prev,
+                                    [a.id]: { ...prev[a.id], opsi_id: oId, opsi_baru: '' }
+                                  }));
+                                }}
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                              >
+                                <option value="">-- Pilih Opsi yang Tersedia --</option>
+                                {a.opsi?.map(o => (
+                                  <option key={o.id} value={o.id}>{o.nilai}</option>
+                                ))}
+                              </select>
+
+                              {/* Opsi Baru Cepat */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400">Atau ketik opsi baru:</span>
+                                <input
+                                  type="text"
+                                  placeholder="Contoh: 5A / 5G / Jack Baru"
+                                  value={curVal.opsi_baru || ''}
+                                  onChange={e => {
+                                    const text = e.target.value;
+                                    setTypeAttrValues(prev => ({
+                                      ...prev,
+                                      [a.id]: { ...prev[a.id], opsi_baru: text, opsi_id: '' }
+                                    }));
+                                  }}
+                                  className="flex-1 px-2.5 py-1 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Isian Teks */}
+                          {a.tipe_isian === 'teks' && (
+                            <input
+                              type="text"
+                              placeholder="Ketik teks..."
+                              value={curVal.nilai_teks || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setTypeAttrValues(prev => ({
+                                  ...prev,
+                                  [a.id]: { ...prev[a.id], nilai_teks: val }
+                                }));
+                              }}
+                              className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {/* Pengaturan Aturan ID */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700 space-y-3">
+                <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                  Aturan Identitas Fisik Item (ID Rule):
+                </span>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {(['scan_sn', 'otomatis', 'manual', 'tanpa_id'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setTypeSumberId(mode)}
+                      className={`p-2 rounded-lg border text-left flex flex-col justify-between ${
+                        typeSumberId === mode
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <span className="uppercase text-[10px] tracking-wider font-mono">{mode}</span>
+                      <span className="text-[9px] text-slate-400 mt-1">
+                        {mode === 'scan_sn' && 'Barcode / SN Pabrik'}
+                        {mode === 'otomatis' && 'Auto-generate QR'}
+                        {mode === 'manual' && 'Ketik Bebas'}
+                        {mode === 'tanpa_id' && 'Mode Jumlah'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {typeSumberId === 'otomatis' && (
+                  <div>
+                    <label className="block font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      Prefix ID Otomatis (Contoh: ADP12, CAB)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Misal: ADP12-"
+                      value={typePrefixId}
+                      onChange={e => setTypePrefixId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono"
+                    />
+                  </div>
+                )}
+
+                {typeSumberId !== 'tanpa_id' && (
+                  <div>
+                    <label className="block font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      Pola Regex Validasi ID (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Misal: ^SN[0-9]{8}$ atau ^ADP[A-Z0-9]+$"
+                      value={typePolaId}
+                      onChange={e => setTypePolaId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddTypeOpen(false)}
+                  className="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 font-bold text-white bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 rounded-lg shadow-xs"
+                >
+                  Simpan Tipe Varian
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: TAMBAH ATRIBUT UNTUK JENIS */}
+      {/* ========================================================================= */}
+      {isAddAttrOpen && selectedJenisForAttr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Tambah Atribut Spesifikasi
+                </h3>
+                <span className="text-xs text-slate-500">
+                  Untuk Jenis: <strong>{selectedJenisForAttr.nama}</strong>
+                </span>
+              </div>
+              <button onClick={() => setIsAddAttrOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAtribut} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Nama Label Atribut * (Contoh: Tegangan, Arus, Jenis Jack, Jaringan)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Misal: Tegangan"
+                  value={newAttrNama}
+                  onChange={e => {
+                    setNewAttrNama(e.target.value);
+                    if (!newAttrKode) {
+                      setNewAttrKode(e.target.value.toLowerCase().replace(/\s+/g, '_'));
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Kode Teknis (Database Key) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="tegangan"
+                  value={newAttrKode}
+                  onChange={e => setNewAttrKode(e.target.value.toLowerCase().replace(/\s+/g, '_'))}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Tipe Isian Data *
+                </label>
+                <select
+                  value={newAttrTipeIsian}
+                  onChange={e => setNewAttrTipeIsian(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100"
+                >
+                  <option value="angka">Angka (dengan satuan: V, A, m, dll)</option>
+                  <option value="pilihan">Pilihan Dropdown (opsi yang seragam)</option>
+                  <option value="teks">Teks Bebas</option>
+                </select>
+              </div>
+
+              {newAttrTipeIsian === 'angka' && (
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Satuan Pengukuran (Contoh: V, A, m, dBm)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="V"
+                    value={newAttrSatuan}
+                    onChange={e => setNewAttrSatuan(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono"
+                  />
+                </div>
+              )}
+
+              {newAttrTipeIsian === 'pilihan' && (
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Daftar Opsi Awal (Pisahkan dengan koma)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Misal: 1A, 2A, 3A, 5A"
+                    value={newAttrOpsiText}
+                    onChange={e => setNewAttrOpsiText(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-6 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newAttrWajib}
+                    onChange={e => setNewAttrWajib(e.target.checked)}
+                  />
+                  <span className="text-slate-800 dark:text-slate-200 font-medium">Atribut Wajib Diisi</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newAttrMasukNama}
+                    onChange={e => setNewAttrMasukNama(e.target.checked)}
+                  />
+                  <span className="text-slate-800 dark:text-slate-200 font-medium">Masuk ke Nama Tipe</span>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddAttrOpen(false)}
+                  className="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 font-bold text-white bg-slate-900 dark:bg-emerald-600 rounded-lg shadow-xs"
+                >
+                  Simpan Atribut
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: BUAT JENIS BARU */}
+      {/* ========================================================================= */}
+      {isAddJenisOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                Tambah Jenis Baru (Golongan Besar)
+              </h3>
+              <button onClick={() => setIsAddJenisOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateJenis} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Nama Jenis * (Contoh: Adaptor, Modem/ONU, Router, SFP, Kabel)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Misal: Adaptor"
+                  value={newJenisNama}
+                  onChange={e => setNewJenisNama(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Sumber ID Bawaan untuk Jenis Ini
+                </label>
+                <select
+                  value={newJenisSumberId}
+                  onChange={e => setNewJenisSumberId(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100"
+                >
+                  <option value="scan_sn">scan_sn (Barcode / Serial Number Pabrik)</option>
+                  <option value="otomatis">otomatis (Generate Nomor Seri Sistem & QR)</option>
+                  <option value="manual">manual (Ketik Manual Pengguna)</option>
+                  <option value="tanpa_id">tanpa_id (Mode Stok Jumlah / Non-SN)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Prefix Bawaan (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Misal: ADP"
+                  value={newJenisPrefix}
+                  onChange={e => setNewJenisPrefix(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddJenisOpen(false)}
+                  className="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 font-bold text-white bg-slate-900 dark:bg-emerald-600 rounded-lg shadow-xs"
+                >
+                  Simpan Jenis
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: KOREKSI ATURAN ID TIPE */}
+      {/* ========================================================================= */}
+      {isCorrectIdRuleOpen && selectedTypeForIdRule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Koreksi Aturan ID Tipe
+                </h3>
+                <span className="text-xs text-slate-500">
+                  Tipe: <strong>{selectedTypeForIdRule.nama_tipe}</strong>
+                </span>
+              </div>
+              <button onClick={() => setIsCorrectIdRuleOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveIdRuleCorrection} className="space-y-3.5 text-xs">
+              {selectedTypeForIdRule.id_dikunci && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                  <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Aturan ID tipe ini sudah <strong>dikunci</strong> karena stok fisik pernah tercatat. Perubahan memerlukan verifikasi server dan alasan wajib.
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Sumber ID Baru
+                </label>
+                <select
+                  value={correctSumberId}
+                  onChange={e => setCorrectSumberId(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100"
+                >
+                  <option value="scan_sn">scan_sn (Barcode / SN Pabrik)</option>
+                  <option value="otomatis">otomatis (Generate Nomor Seri Sistem & QR)</option>
+                  <option value="manual">manual (Ketik Manual Pengguna)</option>
+                  <option value="tanpa_id">tanpa_id (Mode Stok Jumlah)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Prefix Baru (Jika otomatis)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Misal: ADP12-"
+                  value={correctPrefixId}
+                  onChange={e => setCorrectPrefixId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Pola Regex Validasi Baru
+                </label>
+                <input
+                  type="text"
+                  placeholder="Misal: ^SN[0-9]{8}$"
+                  value={correctPolaId}
+                  onChange={e => setCorrectPolaId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Alasan Koreksi Aturan ID * (Tercatat di Audit Log)
+                </label>
+                <textarea
+                  rows={2}
+                  required
+                  placeholder="Jelaskan alasan perubahan standardisasi barcode / serial number..."
+                  value={correctAlasan}
+                  onChange={e => setCorrectAlasan(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsCorrectIdRuleOpen(false)}
+                  className="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 font-bold text-white bg-slate-900 dark:bg-emerald-600 rounded-lg shadow-xs"
+                >
+                  Simpan Koreksi Aturan ID
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Stock & Box Modals */}
+      <StockInputModal
+        isOpen={isStockInputOpen}
+        onClose={() => setIsStockInputOpen(false)}
+        onSuccess={() => loadData()}
+      />
+
+      <BoxManagerModal
+        isOpen={isBoxManagerOpen}
+        onClose={() => setIsBoxManagerOpen(false)}
+        onSelectBox={b => setSelectedBoxForContent(b.id)}
+      />
+
+      <BoxContentModal
+        isOpen={!!selectedBoxForContent}
+        boxIdOrKode={selectedBoxForContent}
+        onClose={() => setSelectedBoxForContent(null)}
+        onRefreshParent={() => loadData()}
+      />
+    </div>
+  );
+};
